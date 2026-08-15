@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+# ban TODO comments from main
+if [ "$(git symbolic-ref --quiet --short HEAD)" = "main" ]; then
+    todos=$(git grep --cached -n -I -e TODO -- '*.py' '*.ts' '*.tsx' '*.css' || true)
+    if [ -n "$todos" ]; then
+        echo "blocked: TODO comments would land on main" >&2
+        echo "$todos" >&2
+        exit 1
+    fi
+fi
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM -- '*.py' '*.ts' '*.tsx' '*.css')
+
+if [ -n "$staged_files" ]; then
+    repo_root=$(git rev-parse --show-toplevel)
+    echo "$staged_files" | sed "s|^|$repo_root/|" | xargs "$repo_root/format.sh"
+    echo "$staged_files" | xargs git add
+fi
