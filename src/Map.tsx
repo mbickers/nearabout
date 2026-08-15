@@ -102,6 +102,8 @@ const DETAIL_FADE_IN = 14;
 
 const DETAIL_FADE_FULL = 14.5;
 
+const STATION_DETAIL_ZOOM = 13;
+
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [DETAIL_FADE_IN, 1.9],
   [16, 2.5],
@@ -345,6 +347,38 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
     // at the position these layers hold in the basemap
     ...basemapLayers.filter(isStreetLabelLayer),
     {
+      id: "subway_stations_local_overview",
+      type: "circle",
+      source: "subway_station_routes",
+      maxzoom: STATION_DETAIL_ZOOM,
+      filter: [
+        "all",
+        ["has", `label_offset_${servicePeriod}`],
+        ["!=", ["get", `express_${servicePeriod}`], true],
+      ],
+      paint: {
+        "circle-radius": 2.5,
+        "circle-color": "#000000",
+      },
+    },
+    {
+      id: "subway_stations_express_overview",
+      type: "circle",
+      source: "subway_station_routes",
+      maxzoom: STATION_DETAIL_ZOOM,
+      filter: [
+        "all",
+        ["has", `label_offset_${servicePeriod}`],
+        ["==", ["get", `express_${servicePeriod}`], true],
+      ],
+      paint: {
+        "circle-radius": 3.5,
+        "circle-color": "#ffffff",
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 1.5,
+      },
+    },
+    {
       id: "subway_entrances",
       type: "circle",
       source: "subway_entrances",
@@ -369,6 +403,7 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       id: "subway_station_routes",
       type: "symbol",
       source: "subway_station_routes",
+      minzoom: STATION_DETAIL_ZOOM,
       filter: ["has", `offset_${servicePeriod}`],
       layout: {
         "icon-image": ["get", "route"],
@@ -387,6 +422,7 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       id: "subway_station_names",
       type: "symbol",
       source: "subway_station_routes",
+      minzoom: STATION_DETAIL_ZOOM,
       filter: ["has", `label_offset_${servicePeriod}`],
       layout: {
         "text-field": ["get", "label"],
