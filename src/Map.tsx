@@ -102,7 +102,7 @@ const DETAIL_FADE_IN = 14;
 
 const DETAIL_FADE_FULL = 14.5;
 
-const STATION_DETAIL_ZOOM = 13;
+const STATION_DETAIL_ZOOM = DETAIL_FADE_IN;
 
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [DETAIL_FADE_IN, 1.9],
@@ -278,8 +278,8 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       paint: {
         "line-color": BIKE_COLOR,
         "line-width": interpolateOnZoom([
-          [DETAIL_FADE_IN, 0.4],
-          [19, 1.5],
+          [DETAIL_FADE_IN, 0.5],
+          [19, 1.8],
         ]),
         "line-opacity": DETAIL_FADE,
       },
@@ -290,8 +290,24 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       source: "bike_routes",
       // 2 is the two-way route, R and L the one-way directions along and against the geometry
       // the DOT feed splits routes into block-length features, and MapLibre places at least one
-      // line symbol (the direction arrows) on each feature. Sampling feature IDs controls density across those segments.
-      filter: ["all", ["!=", ["get", "bikedir"], "2"], ["==", ["%", ["id"], 3], 0]],
+      // line symbol on each feature. Sampling feature IDs more aggressively at overview zooms
+      // controls density across those segments.
+      // NYC has no unprotected contraflow lanes; a future contraflow lane would require revisiting
+      // the Class I restriction.
+      filter: [
+        "all",
+        ["==", ["get", "facilitycl"], "I"],
+        ["!=", ["get", "bikedir"], "2"],
+        [
+          "step",
+          ["zoom"],
+          ["==", ["%", ["id"], 15], 0],
+          13,
+          ["==", ["%", ["id"], 6], 0],
+          14,
+          ["==", ["%", ["id"], 3], 0],
+        ],
+      ],
       layout: {
         "symbol-placement": "line",
         "icon-image": "bike_caret",
@@ -302,13 +318,6 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
         "symbol-spacing": 600,
         // existing labels can suppress a caret, but a caret cannot suppress symbols placed later
         "icon-ignore-placement": true,
-      },
-      paint: {
-        // protected routes remain legible with the overview; other routes follow the street detail
-        "icon-opacity": interpolateOnZoom([
-          [DETAIL_FADE_IN, ["case", ["==", ["get", "facilitycl"], "I"], 1, 0]],
-          [DETAIL_FADE_FULL, 1],
-        ]),
       },
     },
     {
@@ -440,6 +449,7 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
         "text-color": "#000000",
         "text-halo-color": "#ffffff",
         "text-halo-width": 1.5,
+        "text-opacity": DETAIL_FADE,
       },
     },
   ],
