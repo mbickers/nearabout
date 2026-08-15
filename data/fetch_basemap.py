@@ -53,7 +53,6 @@ def main():
     print(f"Extracting bbox {NYC_BBOX} from {source_url}", flush=True)
     subprocess.run(command, check=True)
     staging_path.replace(OUTPUT_PATH)  # only after success, so a failed run keeps the old basemap
-    print(f"Wrote {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
