@@ -2,6 +2,7 @@ node_modules/
 dist/
 
 public/tiles/
+public/data/
 
 __pycache__/
 .ruff_cache/
