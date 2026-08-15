@@ -30,8 +30,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract a NYC-clipped Protomaps basemap to public/tiles/nyc.pmtiles."
     )
-    parser.add_argument("--build", help="daily build to extract, e.g. 20260814 (default: the latest)")
-    parser.add_argument("--maxzoom", type=int, help="clamp the extract to this zoom (default: the archive's full depth)")
+    parser.add_argument(
+        "--build", help="daily build to extract, e.g. 20260814 (default: the latest)"
+    )
+    parser.add_argument(
+        "--maxzoom",
+        type=int,
+        help="clamp the extract to this zoom (default: the archive's full depth)",
+    )
     args = parser.parse_args()
 
     key = f"{args.build}.pmtiles" if args.build else latest_build_key()
