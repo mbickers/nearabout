@@ -1,6 +1,6 @@
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import type { ExpressionSpecification, FilterSpecification, StyleSpecification } from "maplibre-gl";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 import subwayBullets from "../public/data/subway_bullets.json";
 
@@ -59,10 +59,11 @@ const STATION_DETAIL_FADE_FULL = 14.5;
 
 const flavor = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
 
-// no toggle yet; swap for "late_night" or "weekend" to see the other service patterns
-const SERVICE_PERIOD = "regular";
+const SERVICE_PERIODS = ["regular", "late_night", "weekend"] as const;
 
-const mapStyle: StyleSpecification = {
+type ServicePeriod = (typeof SERVICE_PERIODS)[number];
+
+const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
   version: 8,
   // the station name labels are the only text in the style
   glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
@@ -177,10 +178,10 @@ const mapStyle: StyleSpecification = {
       id: "subway_station_routes",
       type: "symbol",
       source: "subway_station_routes",
-      filter: ["has", `offset_${SERVICE_PERIOD}`],
+      filter: ["has", `offset_${servicePeriod}`],
       layout: {
         "icon-image": ["get", "route"],
-        "icon-offset": ["get", `offset_${SERVICE_PERIOD}`],
+        "icon-offset": ["get", `offset_${servicePeriod}`],
         "icon-size": interpolateOnZoom([
           [11, 0.4],
           [14, 0.6],
@@ -195,7 +196,7 @@ const mapStyle: StyleSpecification = {
       id: "subway_station_names",
       type: "symbol",
       source: "subway_station_routes",
-      filter: ["has", `label_offset_${SERVICE_PERIOD}`],
+      filter: ["has", `label_offset_${servicePeriod}`],
       layout: {
         "text-field": ["get", "label"],
         "text-font": ["Noto Sans Medium"],
@@ -203,7 +204,7 @@ const mapStyle: StyleSpecification = {
           [11, 11],
           [16, 15],
         ]),
-        "text-offset": ["get", `label_offset_${SERVICE_PERIOD}`],
+        "text-offset": ["get", `label_offset_${servicePeriod}`],
         "text-anchor": "bottom-left",
         // the anchor places the block; without this, wrapped lines centre inside it
         "text-justify": "left",
@@ -215,10 +216,12 @@ const mapStyle: StyleSpecification = {
       },
     },
   ],
-};
+});
 
 export const Map = () => {
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("regular");
+  const mapStyle = useMemo(() => buildMapStyle(servicePeriod), [servicePeriod]);
 
   return (
     <>
@@ -245,13 +248,27 @@ export const Map = () => {
           position: "fixed",
           top: 8,
           left: 8,
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
           padding: "2px 6px",
           background: "rgba(255, 255, 255, 0.85)",
           borderRadius: 4,
           font: "12px ui-monospace, monospace",
         }}
       >
-        zoom: {zoom.toFixed(2)}
+        <span>zoom: {zoom.toFixed(2)}</span>
+        <select
+          value={servicePeriod}
+          onChange={({ target }) => setServicePeriod(target.value as ServicePeriod)}
+          style={{ font: "inherit" }}
+        >
+          {SERVICE_PERIODS.map((period) => (
+            <option key={period} value={period}>
+              {period.replace("_", " ")}
+            </option>
+          ))}
+        </select>
       </div>
     </>
   );
