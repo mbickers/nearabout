@@ -7,9 +7,11 @@
 
 import collections
 import csv
+import heapq
 import io
 import itertools
 import json
+import math
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -28,6 +30,10 @@ MINIMUM_TRIP_SHARE = 0.2
 
 SERVICE_PERIODS = ("regular", "late_night", "weekend")
 
+MAXIMUM_EXPRESS_SKIP_STOPS = 12
+
+MAXIMUM_EXPRESS_PATH_DETOUR = 1.5
+
 
 def symbol_key(symbol):
     """Sort key ordering letters before numbers, so the A C E group precedes the 1 2 3 group."""
@@ -45,6 +51,57 @@ def periods_for(*, weekday_service, hour):
     if not weekday_service:
         return ("weekend",)
     return ("late_night",) if late_night else ("regular",)
+
+
+def express_stations(*, trip_stations, trips, routes, stations):
+    def distance(first, second):
+        latitude = math.radians((stations[first]["lat"] + stations[second]["lat"]) / 2)
+        longitude_distance = (stations[first]["lon"] - stations[second]["lon"]) * math.cos(latitude)
+        latitude_distance = stations[first]["lat"] - stations[second]["lat"]
+        return math.hypot(longitude_distance, latitude_distance)
+
+    result = {}
+    for period in SERVICE_PERIODS:
+        edges_by_color = collections.defaultdict(set)
+        for trip_id, stops in trip_stations[period].items():
+            route_id, _ = trips[trip_id]
+            color = routes[route_id]["color"]
+            trip_station_ids = [station for _, station in sorted(stops)]
+            for first, second in itertools.pairwise(trip_station_ids):
+                if first != second:
+                    edges_by_color[color].add(frozenset((first, second)))
+
+        here = set()
+        for edges in edges_by_color.values():
+            neighbors = collections.defaultdict(set)
+            for edge in edges:
+                first, second = edge
+                neighbors[first].add(second)
+                neighbors[second].add(first)
+
+            for edge in edges:
+                first, second = edge
+                direct_distance = distance(first, second)
+                queue = [(0, 0, first)]
+                shortest = {first: 0}
+                while queue:
+                    path_distance, stops, station = heapq.heappop(queue)
+                    if station == second:
+                        if path_distance <= MAXIMUM_EXPRESS_PATH_DETOUR * direct_distance:
+                            here.update((first, second))
+                        break
+                    if stops > MAXIMUM_EXPRESS_SKIP_STOPS:
+                        continue
+                    for neighbor in neighbors[station]:
+                        if frozenset((station, neighbor)) == edge:
+                            continue
+                        candidate = path_distance + distance(station, neighbor)
+                        if candidate >= shortest.get(neighbor, math.inf):
+                            continue
+                        shortest[neighbor] = candidate
+                        heapq.heappush(queue, (candidate, stops + 1, neighbor))
+        result[period] = here
+    return result
 
 
 def main():
@@ -106,6 +163,7 @@ def main():
 
     served = {period: {} for period in SERVICE_PERIODS}
     route_trips = {period: collections.defaultdict(set) for period in SERVICE_PERIODS}
+    trip_stations = {period: collections.defaultdict(list) for period in SERVICE_PERIODS}
     for stop_time in read_csv(archive, "stop_times"):
         route_id, weekday_service = trips[stop_time["trip_id"]]
         station_id = station_of[stop_time["stop_id"]]
@@ -113,6 +171,13 @@ def main():
         for period in periods_for(weekday_service=weekday_service, hour=hour):
             served[period].setdefault(station_id, collections.Counter())[route_id] += 1
             route_trips[period][route_id].add(stop_time["trip_id"])
+            trip_stations[period][stop_time["trip_id"]].append(
+                (int(stop_time["stop_sequence"]), station_id)
+            )
+
+    express = express_stations(
+        trip_stations=trip_stations, trips=trips, routes=routes, stations=stations
+    )
 
     # The MTA gives constituent stations a shared name where they are really one station, so a
     # name within a complex is the unit to group on: both halves of Delancey St-Essex St merge,
@@ -187,6 +252,9 @@ def main():
                     if offsets[period]:
                         rows = len({y for _, y in offsets[period].values()})
                         properties[f"label_offset_{period}"] = [0, -((rows - 1) * 0.53 + 0.41)]
+                        properties[f"express_{period}"] = any(
+                            station_id in express[period] for station_id, _ in members
+                        )
             features.append(
                 {
                     "type": "Feature",
