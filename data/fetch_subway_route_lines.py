@@ -2,7 +2,7 @@
 
 # /// script
 # requires-python = ">=3.11"
-# dependencies = []
+# dependencies = ["shapely"]
 # ///
 
 import csv
@@ -12,6 +12,9 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import shapely
+import shapely.geometry
+
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "subway_routes.geojson"
 
 
@@ -20,9 +23,27 @@ def read_csv(archive, name):
         yield from csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig"))
 
 
+def dissolve_by_color(shapes_by_color):
+    """Merge the shapes of each colour into one feature, so no track is drawn twice.
+
+    - GTFS carries a shape per route and several more per route for the express, local and
+      short-turn variants, so a trunk would otherwise be drawn a dozen times over
+    - maplibre applies line-opacity to each fragment and has no per-layer equivalent for a line
+      layer, so a translucent line drawn twice is not translucent
+    - routes sharing a trunk share a colour, which is all the style reads
+    """
+    return [
+        {
+            "type": "Feature",
+            "geometry": shapely.geometry.mapping(shapely.line_merge(shapely.union_all(shapes))),
+            "properties": {"color": color},
+        }
+        for color, shapes in sorted(shapes_by_color.items())
+    ]
+
+
 def main():
-    # trip geometry rather than the MTA's service lines, which draw built track: their Q runs
-    # 640m past 96 St up the unopened Second Ave tunnel and their 7 past the Hudson Yards tail
+    # Use trip geometry for tracks (rather than MTA service lines, which go beyond terminals on some lines)
     url = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
     print(f"Fetching {url}", flush=True)
     with urllib.request.urlopen(url, timeout=300) as response:
@@ -50,24 +71,19 @@ def main():
             )
         )
 
-    features = [
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "MultiLineString",
-                "coordinates": [
-                    [[lon, lat] for _, lon, lat in sorted(points[shape_id])]
-                    for shape_id in sorted(shape_ids)
-                ],
-            },
-            "properties": routes[route_id],
-        }
-        for route_id, shape_ids in sorted(shapes_of_route.items())
-    ]
+    shapes_by_color = {}
+    for route_id, shape_ids in sorted(shapes_of_route.items()):
+        for shape_id in sorted(shape_ids):
+            shapes_by_color.setdefault(routes[route_id]["color"], []).append(
+                shapely.geometry.LineString(
+                    [(lon, lat) for _, lon, lat in sorted(points[shape_id])]
+                )
+            )
+
+    features = dissolve_by_color(shapes_by_color)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
-    print(f"Wrote {OUTPUT_PATH} ({len(features)} routes)")
 
 
 if __name__ == "__main__":

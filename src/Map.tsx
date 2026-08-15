@@ -1,5 +1,13 @@
 import { layers, namedFlavor } from "@protomaps/basemaps";
-import type { ExpressionSpecification, FilterSpecification, StyleSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  LayerSpecification,
+  LineLayerSpecification,
+  Map as MapInstance,
+  StyleSpecification,
+  SymbolLayerSpecification,
+} from "maplibre-gl";
 import { useMemo, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 import subwayBullets from "../public/data/subway_bullets.json";
@@ -44,20 +52,158 @@ const drawBullet = ({
   return context.getImageData(0, 0, BULLET_PIXELS, BULLET_PIXELS);
 };
 
+const BIKE_COLOR = "#000000";
+
+const STREET_COLOR = "#d5d5d5";
+
+// the caret icon, in css pixels at CARET_SIZE_STOPS size 1
+const CARET_LENGTH_PIXELS = 3.5;
+const CARET_HEIGHT_PIXELS = 7;
+const CARET_STROKE_PIXELS = 1;
+// avoids resampling blur at the sizes CARET_SIZE_STOPS reaches
+const CARET_RESOLUTION = 4;
+
+// the colour is what distinguishes a street's direction marker from a bike lane's
+const drawCaret = ({ color }: { color: string }) => {
+  const inset = CARET_STROKE_PIXELS / 2;
+  const width = CARET_LENGTH_PIXELS + CARET_STROKE_PIXELS;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * CARET_RESOLUTION;
+  canvas.height = CARET_HEIGHT_PIXELS * CARET_RESOLUTION;
+  const context = canvas.getContext("2d")!;
+  context.scale(CARET_RESOLUTION, CARET_RESOLUTION);
+
+  context.strokeStyle = color;
+  context.lineWidth = CARET_STROKE_PIXELS;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  // the ink then spans exactly CARET_HEIGHT_PIXELS at any stroke width
+  context.beginPath();
+  context.moveTo(inset, inset);
+  context.lineTo(inset + CARET_LENGTH_PIXELS, CARET_HEIGHT_PIXELS / 2);
+  context.lineTo(inset, CARET_HEIGHT_PIXELS - inset);
+  context.stroke();
+
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+};
+
 // pairs rather than an object because integer-like object keys sort ahead of fractional ones,
 // which would silently reorder stops like 14.5 and 15 into a descending list maplibre rejects
-const interpolateOnZoom = (stops: [zoom: number, value: number][]) =>
+const interpolateOnZoom = (stops: [zoom: number, value: number | ExpressionSpecification][]) =>
   ["interpolate", ["linear"], ["zoom"], ...stops.flat()] as unknown as ExpressionSpecification;
 
 const SOURCE_ID = "protomaps";
 
 const INITIAL_ZOOM = 11;
 
-const STATION_DETAIL_FADE_IN = 14;
+const DETAIL_FADE_IN = 14;
 
-const STATION_DETAIL_FADE_FULL = 14.5;
+const DETAIL_FADE_FULL = 14.5;
+
+const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
+  [DETAIL_FADE_IN, 1.9],
+  [16, 2.5],
+  [19, 4.5],
+];
+
+const SUBWAY_WIDTH = interpolateOnZoom([
+  [10, 1],
+  [14, 3],
+  [18, 6],
+]);
 
 const flavor = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
+
+// the four road classes this map renders, over surface, bridge and tunnel. a casing carries the
+// dashes the basemap gives a tunnel, and service is the driveway, parking aisle and alley part of
+// the minor class
+const isStreetLayer = (layer: LayerSpecification): layer is LineLayerSpecification =>
+  layer.type === "line" &&
+  layer.id.startsWith("roads_") &&
+  !layer.id.includes("casing") &&
+  !layer.id.includes("service") &&
+  ["minor", "link", "major", "highway"].some((kind) => layer.id.includes(kind));
+
+const isStreetLabelLayer = (layer: LayerSpecification): layer is SymbolLayerSpecification =>
+  layer.type === "symbol" && layer.id.startsWith("roads_labels_");
+
+const DETAIL_FADE = interpolateOnZoom([
+  [DETAIL_FADE_IN, 0],
+  [DETAIL_FADE_FULL, 1],
+]);
+
+const basemapLayers = layers(SOURCE_ID, flavor, { lang: "en" })
+  .filter(
+    (layer) =>
+      [
+        "background",
+        "earth",
+        "landuse_aerodrome",
+        "landuse_park",
+        "landuse_pier",
+        "water",
+        "water_stream",
+        "water_river",
+      ].includes(layer.id) ||
+      isStreetLayer(layer) ||
+      isStreetLabelLayer(layer),
+  )
+  .map((layer) => {
+    if (isStreetLayer(layer)) {
+      return {
+        ...layer,
+        minzoom: DETAIL_FADE_IN,
+        // only the surface minor layer excludes service in its own filter, so the bridge and
+        // tunnel variants would otherwise render driveways and roadways inside a pier shed
+        filter: ["all", layer.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
+        // the stock paint varies from white to grey by class and by tunnel
+        paint: {
+          "line-color": STREET_COLOR,
+          "line-width": layer.paint?.["line-width"],
+          "line-opacity": DETAIL_FADE,
+        },
+      };
+    }
+    if (isStreetLabelLayer(layer)) {
+      return {
+        ...layer,
+        // minor names have a higher stock minzoom than the streets
+        minzoom: Math.max(layer.minzoom ?? 0, DETAIL_FADE_IN),
+        // the minor filter also matches the path and other kinds, and service roads within the
+        // minor kind; this map renders none of those, so their labels would have no line beneath
+        filter: (layer.id === "roads_labels_minor"
+          ? ["all", ["==", "kind", "minor_road"], ["!=", "kind_detail", "service"]]
+          : layer.filter) as FilterSpecification,
+        paint: { ...layer.paint, "text-opacity": DETAIL_FADE },
+      };
+    }
+    if (layer.type !== "fill") return layer;
+    if (layer.id === "landuse_park") {
+      // the stock filter also takes wood, grass and sand, which the paint shades separately
+      // and which show up as lawns and ball fields inside a park
+      return {
+        ...layer,
+        filter: [
+          "in",
+          "kind",
+          "national_park",
+          "park",
+          "cemetery",
+          "protected_area",
+          "nature_reserve",
+          "forest",
+          "golf_course",
+        ] as FilterSpecification,
+      };
+    }
+    // piers are their own layer because they draw after water, which would otherwise cover them
+    if (layer.id === "landuse_pier") {
+      return { ...layer, paint: { ...layer.paint, "fill-color": flavor.park_b } };
+    }
+    return layer;
+  });
 
 const SERVICE_PERIODS = ["regular", "late_night", "weekend"] as const;
 
@@ -65,7 +211,7 @@ type ServicePeriod = (typeof SERVICE_PERIODS)[number];
 
 const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
   version: 8,
-  // the station name labels are the only text in the style
+  // street names come from the basemap's own label layers, station names from the subway data
   glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
   sources: {
     [SOURCE_ID]: {
@@ -74,84 +220,124 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       attribution:
         '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
     },
+    bike_routes: { type: "geojson", data: "/data/bike_routes.geojson" },
     subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
     subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
     subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
     subway_station_routes: { type: "geojson", data: "/data/subway_station_routes.geojson" },
   },
   layers: [
-    ...layers(SOURCE_ID, flavor, { lang: "en" })
-      .filter(({ id }) =>
-        [
-          "background",
-          "earth",
-          "landuse_aerodrome",
-          "landuse_park",
-          "landuse_pier",
-          "water",
-          "water_stream",
-          "water_river",
-        ].includes(id),
-      )
-      .map((layer) => {
-        if (layer.type !== "fill") return layer;
-        if (layer.id === "landuse_park") {
-          // the stock filter also takes wood, grass and sand, which the paint shades separately
-          // and which show up as lawns and ball fields inside a park
-          return {
-            ...layer,
-            filter: [
-              "in",
-              "kind",
-              "national_park",
-              "park",
-              "cemetery",
-              "protected_area",
-              "nature_reserve",
-              "forest",
-              "golf_course",
-            ] as FilterSpecification,
-          };
-        }
-        // piers are their own layer because they draw after water, which would otherwise cover them
-        if (layer.id === "landuse_pier") {
-          return { ...layer, paint: { ...layer.paint, "fill-color": flavor.park_b } };
-        }
-        return layer;
-      }),
+    ...basemapLayers.filter((layer) => !isStreetLabelLayer(layer)),
+    {
+      id: "street_one_way",
+      type: "symbol",
+      source: SOURCE_ID,
+      "source-layer": "roads",
+      minzoom: DETAIL_FADE_IN,
+      // the same streets isStreetLayer renders, so that no caret is drawn over an absent street.
+      // reversible streets have no fixed direction
+      filter: [
+        "all",
+        ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
+        ["!=", ["get", "kind_detail"], "service"],
+        ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
+      ],
+      layout: {
+        "symbol-placement": "line",
+        "icon-image": "street_caret",
+        // -1 is the one-way that runs against the digitized geometry
+        "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
+        "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+        "symbol-spacing": 100,
+      },
+      paint: { "icon-opacity": DETAIL_FADE },
+    },
+    {
+      id: "bike_routes_protected",
+      type: "line",
+      source: "bike_routes",
+      // class I is the physically separated path
+      filter: ["==", ["get", "facilitycl"], "I"],
+      paint: {
+        "line-color": BIKE_COLOR,
+        "line-width": SUBWAY_WIDTH,
+      },
+    },
+    {
+      id: "bike_routes_unprotected",
+      type: "line",
+      source: "bike_routes",
+      minzoom: DETAIL_FADE_IN,
+      filter: ["!=", ["get", "facilitycl"], "I"],
+      paint: {
+        "line-color": BIKE_COLOR,
+        "line-width": interpolateOnZoom([
+          [DETAIL_FADE_IN, 0.4],
+          [19, 1.5],
+        ]),
+        "line-opacity": DETAIL_FADE,
+      },
+    },
+    {
+      id: "bike_one_way",
+      type: "symbol",
+      source: "bike_routes",
+      minzoom: DETAIL_FADE_IN,
+      // 2 is the two-way route, R and L the one-way directions along and against the geometry
+      filter: ["!=", ["get", "bikedir"], "2"],
+      layout: {
+        "symbol-placement": "line",
+        "icon-image": "bike_caret",
+        "icon-rotate": ["case", ["==", ["get", "bikedir"], "L"], 180, 0],
+        "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+        "symbol-spacing": 100,
+        // a caret marks the lane beneath it, so collision must not remove it where it meets
+        // the street's own carets or a label
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+      },
+      paint: { "icon-opacity": DETAIL_FADE },
+    },
+    {
+      id: "subway_stations",
+      // a flat extrusion rather than a fill: fill-extrusion-opacity is applied to the layer once,
+      // where fill-opacity is applied to each polygon, and the envelopes overlapping inside a
+      // complex would blend into a darker patch
+      type: "fill-extrusion",
+      source: "subway_stations",
+      minzoom: DETAIL_FADE_IN,
+      // substring, so shared complexes like "NYCT/PATH" stay while PATH/LIRR/Metro-North-only go
+      filter: ["in", "NYCT", ["get", "agency"]],
+      paint: {
+        "fill-extrusion-color": "#808080",
+        "fill-extrusion-opacity": interpolateOnZoom([
+          [DETAIL_FADE_IN, 0],
+          [DETAIL_FADE_FULL, 0.3],
+        ]),
+      },
+    },
     {
       id: "subway_routes",
       type: "line",
       source: "subway_routes",
       paint: {
         "line-color": ["get", "color"],
-        "line-width": interpolateOnZoom([
-          [10, 1],
-          [14, 3],
-          [18, 6],
+        "line-width": SUBWAY_WIDTH,
+        // the routes recede as the street detail fades in over the same zooms
+        "line-opacity": interpolateOnZoom([
+          [DETAIL_FADE_IN, 1],
+          [DETAIL_FADE_FULL, 0.7],
         ]),
       },
     },
-    {
-      id: "subway_stations",
-      type: "fill",
-      source: "subway_stations",
-      minzoom: STATION_DETAIL_FADE_IN,
-      // substring, so shared complexes like "NYCT/PATH" stay while PATH/LIRR/Metro-North-only go
-      filter: ["in", "NYCT", ["get", "agency"]],
-      paint: {
-        "fill-color": "#808080",
-        "fill-opacity": interpolateOnZoom([
-          [STATION_DETAIL_FADE_IN, 0],
-          [STATION_DETAIL_FADE_FULL, 0.3],
-        ]),
-      },
-    },
+    // street names follow the same centrelines as the routes above, which would print over them
+    // at the position these layers hold in the basemap
+    ...basemapLayers.filter(isStreetLabelLayer),
     {
       id: "subway_entrances",
       type: "circle",
       source: "subway_entrances",
-      minzoom: STATION_DETAIL_FADE_IN,
+      minzoom: DETAIL_FADE_IN,
       paint: {
         "circle-radius": interpolateOnZoom([
           [14, 3.5],
@@ -164,14 +350,8 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
           [18, 1.5],
         ]),
         // both, or the dark ring fades in ahead of the fill it outlines
-        "circle-opacity": interpolateOnZoom([
-          [STATION_DETAIL_FADE_IN, 0],
-          [STATION_DETAIL_FADE_FULL, 1],
-        ]),
-        "circle-stroke-opacity": interpolateOnZoom([
-          [STATION_DETAIL_FADE_IN, 0],
-          [STATION_DETAIL_FADE_FULL, 1],
-        ]),
+        "circle-opacity": DETAIL_FADE,
+        "circle-stroke-opacity": DETAIL_FADE,
       },
     },
     {
@@ -218,9 +398,25 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
   ],
 });
 
+// the caller reads this to tell whether a style already has these images
+const FIRST_STYLE_IMAGE = "street_caret";
+
+const addStyleImages = (map: MapInstance) => {
+  map.addImage(FIRST_STYLE_IMAGE, drawCaret({ color: STREET_COLOR }), {
+    pixelRatio: CARET_RESOLUTION,
+  });
+  map.addImage("bike_caret", drawCaret({ color: BIKE_COLOR }), { pixelRatio: CARET_RESOLUTION });
+
+  for (const bullet of subwayBullets) {
+    map.addImage(bullet.route, drawBullet(bullet), { pixelRatio: 2 });
+  }
+};
+
 export const Map = () => {
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("regular");
+  // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
+  // would otherwise trigger
   const mapStyle = useMemo(() => buildMapStyle(servicePeriod), [servicePeriod]);
 
   return (
@@ -233,14 +429,18 @@ export const Map = () => {
         touchPitch={false}
         maxPitch={0}
         onMove={({ viewState }) => setZoom(viewState.zoom)}
+        // load waits on every source, so these images are registered only once the geojson has
         onLoad={({ target }) => {
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
 
-          for (const bullet of subwayBullets) {
-            target.addImage(bullet.route, drawBullet(bullet), { pixelRatio: 2 });
-          }
+          addStyleImages(target);
+          // every later style also raises style.load, but only a style maplibre rebuilt from
+          // scratch has an empty image manager
+          target.on("style.load", () => {
+            if (!target.hasImage(FIRST_STYLE_IMAGE)) addStyleImages(target);
+          });
         }}
       />
       <div

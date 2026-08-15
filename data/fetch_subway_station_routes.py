@@ -21,15 +21,16 @@ BULLET_SPACING = 24
 
 BULLET_ROW_LIMIT = 5
 
-# a route earns a bullet by normally stopping, not by ever stopping: the 2 makes three weekday
-# daytime stops at Christopher St as overnight local service winds down, which is not a 2 stop
+# The share of a route's trips that must stop at a station for the station to show that route's
+# bullet. Stopping at all is too weak a test: the 2 makes three weekday daytime stops at
+# Christopher St during the transition out of overnight local service, and is not a 2 stop.
 MINIMUM_TRIP_SHARE = 0.2
 
 SERVICE_PERIODS = ("regular", "late_night", "weekend")
 
 
 def symbol_key(symbol):
-    """letters before numbers, so the A C E group sorts ahead of the 1 2 3 group"""
+    """Sort key ordering letters before numbers, so the A C E group precedes the 1 2 3 group."""
     return (0 if symbol[0].isalpha() else 1, symbol)
 
 
@@ -61,7 +62,7 @@ def main():
         for r in read_csv(archive, "routes")
     }
 
-    # bullets group by trunk colour, and the groups themselves run alphabetically
+    # bullets are grouped by trunk colour, and the groups ordered alphabetically
     def ordered_bullets(route_ids):
         by_color = {}
         for route_id in route_ids:
@@ -113,9 +114,9 @@ def main():
             served[period].setdefault(station_id, collections.Counter())[route_id] += 1
             route_trips[period][route_id].add(stop_time["trip_id"])
 
-    # the MTA renames constituents to a shared name when they are really one station, so a name
-    # within a complex is the right grain: both halves of Delancey St-Essex St merge, while
-    # 42 St-Port Authority stays out of Times Sq despite sharing complex 611 with it
+    # The MTA gives constituent stations a shared name where they are really one station, so a
+    # name within a complex is the unit to group on: both halves of Delancey St-Essex St merge,
+    # while 42 St-Port Authority stays separate from Times Sq despite sharing complex 611.
     complexes_url = "https://data.ny.gov/resource/39hk-dx4f.json?$limit=5000"
     print(f"Fetching {complexes_url}", flush=True)
     with urllib.request.urlopen(complexes_url, timeout=120) as response:
@@ -129,7 +130,11 @@ def main():
         complexes.setdefault(station_key_of[station_id], []).append((station_id, station))
 
     def bullet_offsets(route_ids):
-        """route_id -> icon offset, wrapping wide complexes onto rows that never split a colour"""
+        """Map each route_id to its icon offset.
+
+        A complex wider than BULLET_ROW_LIMIT wraps onto further rows, which are broken between
+        colour groups so that no group is split across two rows.
+        """
         rows = [[]]
         if len(route_ids) > BULLET_ROW_LIMIT:
             for _, group in itertools.groupby(route_ids, key=lambda r: routes[r]["color"]):
@@ -175,7 +180,7 @@ def main():
             for period in SERVICE_PERIODS:
                 if route_id in offsets[period]:
                     properties[f"offset_{period}"] = offsets[period][route_id]
-            # one bullet per station carries the label, clearing however many rows it wraps onto
+            # the label goes on one bullet per station, offset clear of every row it wraps onto
             if position == 0:
                 properties["label"] = name
                 for period in SERVICE_PERIODS:
@@ -194,12 +199,10 @@ def main():
 
     geojson_path = OUTPUT_DIR / "subway_station_routes.geojson"
     geojson_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
-    print(f"Wrote {geojson_path} ({len(features)} bullets across {len(complexes)} complexes)")
 
     # the frontend draws one bullet image per route, so it needs the routes without parsing the geojson
     bullets_path = OUTPUT_DIR / "subway_bullets.json"
     bullets_path.write_text(json.dumps(sorted(routes.values(), key=lambda bullet: bullet["route"])))
-    print(f"Wrote {bullets_path} ({len(routes)} routes)")
 
 
 if __name__ == "__main__":
