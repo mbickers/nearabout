@@ -16,7 +16,22 @@ const mapStyle: StyleSpecification = {
         '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
     },
   },
-  layers: layers(SOURCE_ID, namedFlavor("light"), { lang: "en" }),
+  layers: layers(
+    SOURCE_ID,
+    { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" },
+    { lang: "en" },
+  ).filter(({ id }) =>
+    [
+      "background",
+      "earth",
+      "landuse_aerodrome",
+      "landuse_park",
+      "landuse_urban_green",
+      "water",
+      "water_stream",
+      "water_river",
+    ].includes(id),
+  ),
 };
 
 export const Map = () => (
@@ -24,5 +39,13 @@ export const Map = () => (
     initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: 11 }}
     mapStyle={mapStyle}
     style={{ position: "fixed", inset: 0 }}
+    dragRotate={false}
+    touchPitch={false}
+    maxPitch={0}
+    onLoad={({ target }) => {
+      // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
+      target.touchZoomRotate.disableRotation();
+      target.keyboard.disableRotation();
+    }}
   />
 );
