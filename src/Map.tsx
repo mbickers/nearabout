@@ -220,7 +220,11 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       attribution:
         '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
     },
-    bike_routes: { type: "geojson", data: "/data/bike_routes.geojson" },
+    bike_routes: {
+      type: "geojson",
+      data: "/data/bike_routes.geojson",
+      generateId: true,
+    },
     subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
     subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
     subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
@@ -282,21 +286,28 @@ const buildMapStyle = (servicePeriod: ServicePeriod): StyleSpecification => ({
       id: "bike_one_way",
       type: "symbol",
       source: "bike_routes",
-      minzoom: DETAIL_FADE_IN,
       // 2 is the two-way route, R and L the one-way directions along and against the geometry
-      filter: ["!=", ["get", "bikedir"], "2"],
+      // the DOT feed splits routes into block-length features, and MapLibre places at least one
+      // line symbol (the direction arrows) on each feature. Sampling feature IDs controls density across those segments.
+      filter: ["all", ["!=", ["get", "bikedir"], "2"], ["==", ["%", ["id"], 3], 0]],
       layout: {
         "symbol-placement": "line",
         "icon-image": "bike_caret",
         "icon-rotate": ["case", ["==", ["get", "bikedir"], "L"], 180, 0],
         "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-        "symbol-spacing": 100,
-        // a caret marks the lane beneath it, so collision must not remove it where it meets
-        // the street's own carets or a label
-        "icon-allow-overlap": true,
+        // six times the spacing the streets use, since spacing applies within one feature and the
+        // bike data is cut at every block, where the basemap carries a street as one line
+        "symbol-spacing": 600,
+        // existing labels can suppress a caret, but a caret cannot suppress symbols placed later
         "icon-ignore-placement": true,
       },
-      paint: { "icon-opacity": DETAIL_FADE },
+      paint: {
+        // protected routes remain legible with the overview; other routes follow the street detail
+        "icon-opacity": interpolateOnZoom([
+          [DETAIL_FADE_IN, ["case", ["==", ["get", "facilitycl"], "I"], 1, 0]],
+          [DETAIL_FADE_FULL, 1],
+        ]),
+      },
     },
     {
       id: "subway_stations",
