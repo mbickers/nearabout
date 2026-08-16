@@ -1,12 +1,13 @@
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import type {
+  CircleLayerSpecification,
   ExpressionSpecification,
   FilterSpecification,
   LayerSpecification,
   LineLayerSpecification,
   SymbolLayerSpecification,
 } from "maplibre-gl";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import subwayBullets from "../public/data/subway_bullets.json";
 import type { Layer, ServicePeriod } from "./layer";
 import { SERVICE_PERIODS } from "./layer";
@@ -33,9 +34,10 @@ const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [19, 4.5],
 ];
 
+const ROUTE_WIDTH_AT_DETAIL_ZOOM = 3;
 const SUBWAY_WIDTH = interpolateOnZoom([
   [10, 1],
-  [14, 3],
+  [14, ROUTE_WIDTH_AT_DETAIL_ZOOM],
   [18, 6],
 ]);
 
@@ -186,80 +188,127 @@ type LayerDefinition<CurrentLayer extends Layer> = {
   label: string;
   mapStyleFragment: (layer: CurrentLayer) => MapStyleFragment;
   Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
-  Legend?: ComponentType<{ layer: CurrentLayer }>;
 };
 
-export const LAYER_DEFINITIONS: {
-  [Kind in LayerKind]: LayerDefinition<LayerOfKind<Kind>>;
-} = {
-  geography: {
-    label: "Geography",
-    mapStyleFragment: () => ({
-      sources: BASEMAP_SOURCES,
-      physicalLayers: basemapPhysicalLayers.filter(
-        ({ style }) =>
-          style.id !== "landuse_park" && !isStreetLayer(style) && !isStreetLabelLayer(style),
-      ),
-    }),
-  },
-  parks: {
-    label: "Parks",
-    mapStyleFragment: () => ({
-      sources: BASEMAP_SOURCES,
-      physicalLayers: basemapPhysicalLayers.filter(({ style }) => style.id === "landuse_park"),
-    }),
-  },
-  streets: {
-    label: "Streets",
-    mapStyleFragment: () => ({
-      sources: BASEMAP_SOURCES,
-      physicalLayers: [
-        ...basemapPhysicalLayers.filter(({ style }) => isStreetLayer(style)),
-        {
-          z: 10,
-          style: {
-            id: "street_one_way",
-            type: "symbol",
-            source: SOURCE_ID,
-            "source-layer": "roads",
-            minzoom: DETAIL_FADE_IN,
-            // the same streets isStreetLayer renders, so that no caret is drawn over an absent street.
-            // reversible streets have no fixed direction
-            filter: [
-              "all",
-              ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
-              ["!=", ["get", "kind_detail"], "service"],
-              ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
-            ],
-            layout: {
-              "symbol-placement": "line",
-              "icon-image": "street_caret",
-              // -1 is the one-way that runs against the digitized geometry
-              "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
-              "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-              "symbol-spacing": 100,
-            },
-            paint: { "icon-opacity": DETAIL_FADE },
-          },
-        },
-        ...basemapPhysicalLayers
-          .filter(({ style }) => isStreetLabelLayer(style))
-          .map(({ style }) => ({ z: 50, style })),
-      ],
-      addStyleHook: (map) => {
-        if (map.hasImage("street_caret")) return;
-        map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
-          pixelRatio: CARET_RESOLUTION,
-        });
-      },
-    }),
-  },
+const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }) => (
+  <div style={{ display: "grid", gap: 3 }}>
+    {items.map(({ label, legend }) => (
+      <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {legend}
+        {label}
+      </div>
+    ))}
+  </div>
+);
 
-  bike_lanes: {
+const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
+  label: "Geography",
+  mapStyleFragment: () => ({
+    sources: BASEMAP_SOURCES,
+    physicalLayers: basemapPhysicalLayers.filter(
+      ({ style }) =>
+        style.id !== "landuse_park" && !isStreetLayer(style) && !isStreetLabelLayer(style),
+    ),
+  }),
+};
+
+const parksDefinition: LayerDefinition<LayerOfKind<"parks">> = {
+  label: "Parks",
+  mapStyleFragment: () => ({
+    sources: BASEMAP_SOURCES,
+    physicalLayers: basemapPhysicalLayers.filter(({ style }) => style.id === "landuse_park"),
+  }),
+};
+
+const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
+  label: "Streets",
+  mapStyleFragment: () => ({
+    sources: BASEMAP_SOURCES,
+    physicalLayers: [
+      ...basemapPhysicalLayers.filter(({ style }) => isStreetLayer(style)),
+      {
+        z: 10,
+        style: {
+          id: "street_one_way",
+          type: "symbol",
+          source: SOURCE_ID,
+          "source-layer": "roads",
+          minzoom: DETAIL_FADE_IN,
+          // the same streets isStreetLayer renders, so that no caret is drawn over an absent street.
+          // reversible streets have no fixed direction
+          filter: [
+            "all",
+            ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
+            ["!=", ["get", "kind_detail"], "service"],
+            ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
+          ],
+          layout: {
+            "symbol-placement": "line",
+            "icon-image": "street_caret",
+            // -1 is the one-way that runs against the digitized geometry
+            "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
+            "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+            "symbol-spacing": 100,
+          },
+          paint: { "icon-opacity": DETAIL_FADE },
+        },
+      },
+      ...basemapPhysicalLayers
+        .filter(({ style }) => isStreetLabelLayer(style))
+        .map(({ style }) => ({ z: 50, style })),
+    ],
+    addStyleHook: (map) => {
+      if (map.hasImage("street_caret")) return;
+      map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
+        pixelRatio: CARET_RESOLUTION,
+      });
+    },
+  }),
+};
+
+const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
+  const bikeColor = "#000000";
+  const protectedBikeLanePaint = {
+    "line-color": bikeColor,
+    "line-width": SUBWAY_WIDTH,
+  } satisfies LineLayerSpecification["paint"];
+  const protectedBikeLaneLegend = (
+    <svg width="34" height="8" aria-hidden="true">
+      <line
+        x1="1"
+        y1="4"
+        x2="33"
+        y2="4"
+        stroke={bikeColor}
+        strokeWidth={ROUTE_WIDTH_AT_DETAIL_ZOOM}
+      />
+    </svg>
+  );
+  const unprotectedLineWidthAtMaximumZoom = 1.8;
+  const unprotectedBikeLanePaint = {
+    "line-color": bikeColor,
+    "line-width": interpolateOnZoom([
+      [DETAIL_FADE_IN, 0.5],
+      [19, unprotectedLineWidthAtMaximumZoom],
+    ]),
+    "line-opacity": DETAIL_FADE,
+  } satisfies LineLayerSpecification["paint"];
+  const unprotectedBikeLaneLegend = (
+    <svg width="34" height="8" aria-hidden="true">
+      <line
+        x1="1"
+        y1="4"
+        x2="33"
+        y2="4"
+        stroke={bikeColor}
+        strokeWidth={unprotectedLineWidthAtMaximumZoom}
+      />
+    </svg>
+  );
+
+  return {
     label: "Bike lanes",
     mapStyleFragment: () => {
-      const bikeColor = "#000000";
-
       return {
         sources: {
           bike_routes: {
@@ -277,10 +326,7 @@ export const LAYER_DEFINITIONS: {
               source: "bike_routes",
               // class I is the physically separated path
               filter: ["==", ["get", "facilitycl"], "I"],
-              paint: {
-                "line-color": bikeColor,
-                "line-width": SUBWAY_WIDTH,
-              },
+              paint: protectedBikeLanePaint,
             },
           },
           {
@@ -291,14 +337,7 @@ export const LAYER_DEFINITIONS: {
               source: "bike_routes",
               minzoom: DETAIL_FADE_IN,
               filter: ["!=", ["get", "facilitycl"], "I"],
-              paint: {
-                "line-color": bikeColor,
-                "line-width": interpolateOnZoom([
-                  [DETAIL_FADE_IN, 0.5],
-                  [19, 1.8],
-                ]),
-                "line-opacity": DETAIL_FADE,
-              },
+              paint: unprotectedBikeLanePaint,
             },
           },
           {
@@ -350,49 +389,123 @@ export const LAYER_DEFINITIONS: {
         },
       };
     },
-  },
-  subway: {
+    Controls: () => (
+      <LegendRows
+        items={[
+          { label: "Protected", legend: protectedBikeLaneLegend },
+          { label: "Unprotected", legend: unprotectedBikeLaneLegend },
+        ]}
+      />
+    ),
+  };
+})();
+
+// express routes are diamonds on the official map, everything else is a disc
+const drawBullet = ({
+  route,
+  color,
+  text_color,
+}: {
+  route: string;
+  color: string;
+  text_color: string;
+}) => {
+  const bulletPixels = 44;
+  const canvas = document.createElement("canvas");
+  canvas.width = bulletPixels;
+  canvas.height = bulletPixels;
+  const context = canvas.getContext("2d")!;
+  const center = bulletPixels / 2;
+  const radius = center - 1;
+
+  context.fillStyle = color;
+  context.beginPath();
+  if (route.endsWith("X")) {
+    context.moveTo(center, center - radius);
+    context.lineTo(center + radius, center);
+    context.lineTo(center, center + radius);
+    context.lineTo(center - radius, center);
+  } else {
+    context.arc(center, center, radius, 0, 2 * Math.PI);
+  }
+  context.fill();
+
+  context.fillStyle = text_color;
+  context.font = `600 ${bulletPixels * 0.55}px system-ui, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(route.replace(/X$/, ""), center, center);
+
+  return context.getImageData(0, 0, bulletPixels, bulletPixels);
+};
+
+const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
+  const localStationMarkerPaint = {
+    "circle-radius": 3.75,
+    "circle-color": "#000000",
+  } satisfies CircleLayerSpecification["paint"];
+  const localStationMarkerLegend = (
+    <svg width="14" height="14" aria-hidden="true">
+      <circle
+        cx="7"
+        cy="7"
+        r={localStationMarkerPaint["circle-radius"]}
+        fill={localStationMarkerPaint["circle-color"]}
+      />
+    </svg>
+  );
+  const expressStationMarkerPaint = {
+    "circle-radius": 3.5,
+    "circle-color": "#ffffff",
+    "circle-stroke-color": "#000000",
+    "circle-stroke-width": 1.5,
+  } satisfies CircleLayerSpecification["paint"];
+  const expressStationMarkerLegend = (
+    <svg width="14" height="14" aria-hidden="true">
+      <circle
+        cx="7"
+        cy="7"
+        r={expressStationMarkerPaint["circle-radius"]}
+        fill={expressStationMarkerPaint["circle-color"]}
+        stroke={expressStationMarkerPaint["circle-stroke-color"]}
+        strokeWidth={expressStationMarkerPaint["circle-stroke-width"]}
+      />
+    </svg>
+  );
+  const entranceRadiusAtDetailZoom = 3.5;
+  const entranceStrokeWidthAtDetailZoom = 1;
+  const entranceMarkerPaint = {
+    "circle-radius": interpolateOnZoom([
+      [14, entranceRadiusAtDetailZoom],
+      [18, 7],
+    ]),
+    "circle-color": "#ffffff",
+    "circle-stroke-color": "#222222",
+    "circle-stroke-width": interpolateOnZoom([
+      [14, entranceStrokeWidthAtDetailZoom],
+      [18, 1.5],
+    ]),
+    // both must share the fade, or the dark ring appears before the fill
+    "circle-opacity": DETAIL_FADE,
+    "circle-stroke-opacity": DETAIL_FADE,
+  } satisfies CircleLayerSpecification["paint"];
+  const entranceMarkerLegend = (
+    <svg width="14" height="14" aria-hidden="true">
+      <circle
+        cx="7"
+        cy="7"
+        r={entranceRadiusAtDetailZoom}
+        fill={entranceMarkerPaint["circle-color"]}
+        stroke={entranceMarkerPaint["circle-stroke-color"]}
+        strokeWidth={entranceStrokeWidthAtDetailZoom}
+      />
+    </svg>
+  );
+
+  return {
     label: "Subway",
     mapStyleFragment: ({ servicePeriod }) => {
       const stationDetailZoom = DETAIL_FADE_IN;
-      // express routes are diamonds on the official map, everything else is a disc
-      const drawBullet = ({
-        route,
-        color,
-        text_color,
-      }: {
-        route: string;
-        color: string;
-        text_color: string;
-      }) => {
-        const bulletPixels = 44;
-        const canvas = document.createElement("canvas");
-        canvas.width = bulletPixels;
-        canvas.height = bulletPixels;
-        const context = canvas.getContext("2d")!;
-        const center = bulletPixels / 2;
-        const radius = center - 1;
-
-        context.fillStyle = color;
-        context.beginPath();
-        if (route.endsWith("X")) {
-          context.moveTo(center, center - radius);
-          context.lineTo(center + radius, center);
-          context.lineTo(center, center + radius);
-          context.lineTo(center - radius, center);
-        } else {
-          context.arc(center, center, radius, 0, 2 * Math.PI);
-        }
-        context.fill();
-
-        context.fillStyle = text_color;
-        context.font = `600 ${bulletPixels * 0.55}px system-ui, sans-serif`;
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillText(route.replace(/X$/, ""), center, center);
-
-        return context.getImageData(0, 0, bulletPixels, bulletPixels);
-      };
 
       return {
         sources: {
@@ -452,10 +565,7 @@ export const LAYER_DEFINITIONS: {
                 ["has", `label_offset_${servicePeriod}`],
                 ["!=", ["get", `express_${servicePeriod}`], true],
               ],
-              paint: {
-                "circle-radius": 3.75,
-                "circle-color": "#000000",
-              },
+              paint: localStationMarkerPaint,
             },
           },
           {
@@ -470,12 +580,7 @@ export const LAYER_DEFINITIONS: {
                 ["has", `label_offset_${servicePeriod}`],
                 ["==", ["get", `express_${servicePeriod}`], true],
               ],
-              paint: {
-                "circle-radius": 3.5,
-                "circle-color": "#ffffff",
-                "circle-stroke-color": "#000000",
-                "circle-stroke-width": 1.5,
-              },
+              paint: expressStationMarkerPaint,
             },
           },
           {
@@ -485,21 +590,7 @@ export const LAYER_DEFINITIONS: {
               type: "circle",
               source: "subway_entrances",
               minzoom: DETAIL_FADE_IN,
-              paint: {
-                "circle-radius": interpolateOnZoom([
-                  [14, 3.5],
-                  [18, 7],
-                ]),
-                "circle-color": "#ffffff",
-                "circle-stroke-color": "#222222",
-                "circle-stroke-width": interpolateOnZoom([
-                  [14, 1],
-                  [18, 1.5],
-                ]),
-                // both, or the dark ring fades in ahead of the fill it outlines
-                "circle-opacity": DETAIL_FADE,
-                "circle-stroke-opacity": DETAIL_FADE,
-              },
+              paint: entranceMarkerPaint,
             },
           },
           {
@@ -562,24 +653,43 @@ export const LAYER_DEFINITIONS: {
       };
     },
     Controls: ({ layer, disabled, onChange }) => (
-      <label>
-        Service pattern:{" "}
-        <select
-          aria-label="Subway service period"
-          value={layer.servicePeriod}
-          disabled={disabled}
-          onChange={({ target }) =>
-            onChange({ ...layer, servicePeriod: target.value as ServicePeriod })
-          }
-          style={{ font: "inherit" }}
-        >
-          {SERVICE_PERIODS.map((period) => (
-            <option key={period} value={period}>
-              {period.replace("_", " ")}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div style={{ display: "grid", gap: 4 }}>
+        <LegendRows
+          items={[
+            { label: "Local station", legend: localStationMarkerLegend },
+            { label: "Express station", legend: expressStationMarkerLegend },
+            { label: "Entrance", legend: entranceMarkerLegend },
+          ]}
+        />
+        <label>
+          Service pattern:{" "}
+          <select
+            aria-label="Subway service period"
+            value={layer.servicePeriod}
+            disabled={disabled}
+            onChange={({ target }) =>
+              onChange({ ...layer, servicePeriod: target.value as ServicePeriod })
+            }
+            style={{ font: "inherit" }}
+          >
+            {SERVICE_PERIODS.map((period) => (
+              <option key={period} value={period}>
+                {period.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     ),
-  },
+  };
+})();
+
+export const LAYER_DEFINITIONS: {
+  [Kind in LayerKind]: LayerDefinition<LayerOfKind<Kind>>;
+} = {
+  geography: geographyDefinition,
+  parks: parksDefinition,
+  streets: streetsDefinition,
+  bike_lanes: bikeLanesDefinition,
+  subway: subwayDefinition,
 };
