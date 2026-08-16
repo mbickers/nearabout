@@ -77,7 +77,6 @@ const drawCaret = ({ color }: { color: string }) => {
 const PROTOMAPS_FLAVOR = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
 const PROTOMAPS_LAYERS = layers(SOURCE_ID, PROTOMAPS_FLAVOR, { lang: "en" });
 const BACKGROUND = 0;
-const WATER = 1;
 const STREETS = 2;
 
 const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
@@ -126,43 +125,20 @@ const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }
 
 const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   label: "Geography",
-  mapStyleFragment: () => {
-    const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", WATER);
+  mapStyleFragment: ({ parksVisible }) => {
+    const park = protomapsLayer<FillLayerSpecification>("landuse_park", BACKGROUND);
+    const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", BACKGROUND);
 
     return {
       sources: PROTOMAPS_SOURCES,
       physicalLayers: [
         protomapsLayer("background", BACKGROUND),
         protomapsLayer("earth", BACKGROUND),
-        protomapsLayer("landuse_aerodrome", BACKGROUND),
-        protomapsLayer("water", WATER),
-        protomapsLayer("water_stream", WATER),
-        protomapsLayer("water_river", WATER),
-        // piers are their own layer because they draw after water, which would otherwise cover them
-        {
-          ...pier,
-          style: {
-            ...pier.style,
-            paint: { ...pier.style.paint, "fill-color": PROTOMAPS_FLAVOR.pier },
-          },
-        },
-      ],
-    };
-  },
-};
-
-const parksDefinition: LayerDefinition<LayerOfKind<"parks">> = {
-  label: "Parks",
-  mapStyleFragment: () => {
-    const park = protomapsLayer<FillLayerSpecification>("landuse_park", BACKGROUND);
-
-    return {
-      sources: PROTOMAPS_SOURCES,
-      physicalLayers: [
         {
           ...park,
           style: {
             ...park.style,
+            layout: { ...park.style.layout, visibility: parksVisible ? "visible" : "none" },
             // the stock filter also takes wood, grass and sand, which the paint shades separately
             // and which show up as lawns and ball fields inside a park
             filter: [
@@ -178,9 +154,34 @@ const parksDefinition: LayerDefinition<LayerOfKind<"parks">> = {
             ] as FilterSpecification,
           },
         },
+        protomapsLayer("landuse_aerodrome", BACKGROUND),
+        // Render water after parks because Hudson River Park is a large polygon that extends into
+        // the river beyond its piers, and because many parks have water features.
+        protomapsLayer("water", BACKGROUND),
+        protomapsLayer("water_stream", BACKGROUND),
+        protomapsLayer("water_river", BACKGROUND),
+        // piers are their own layer because they draw after water, which would otherwise cover them
+        {
+          ...pier,
+          style: {
+            ...pier.style,
+            paint: { ...pier.style.paint, "fill-color": PROTOMAPS_FLAVOR.pier },
+          },
+        },
       ],
     };
   },
+  Controls: ({ layer, disabled, onChange }) => (
+    <label>
+      <input
+        type="checkbox"
+        checked={layer.parksVisible}
+        disabled={disabled}
+        onChange={({ target }) => onChange({ ...layer, parksVisible: target.checked })}
+      />{" "}
+      Parks
+    </label>
+  ),
 };
 
 const streetLayer = (id: string): PhysicalLayer => {
@@ -710,7 +711,6 @@ export const LAYER_DEFINITIONS: {
   [Kind in LayerKind]: LayerDefinition<LayerOfKind<Kind>>;
 } = {
   geography: geographyDefinition,
-  parks: parksDefinition,
   streets: streetsDefinition,
   bike_lanes: bikeLanesDefinition,
   subway: subwayDefinition,
