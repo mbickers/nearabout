@@ -21,11 +21,6 @@ BULLET_SPACING = 24
 
 BULLET_ROW_LIMIT = 5
 
-# The share of a route's trips that must stop at a station for the station to show that route's
-# bullet. Stopping at all is too weak a test: the 2 makes three weekday daytime stops at
-# Christopher St during the transition out of overnight local service, and is not a 2 stop.
-MINIMUM_TRIP_SHARE = 0.2
-
 SERVICE_PERIODS = ("regular", "late_night", "weekend")
 
 
@@ -168,7 +163,9 @@ def main():
                 {
                     route_id
                     for route_id, count in stops.items()
-                    if count >= MINIMUM_TRIP_SHARE * len(route_trips[period][route_id])
+                    # Stopping at all is too weak a test: the 2 makes three weekday daytime stops
+                    # at Christopher St during the transition out of overnight local service.
+                    if count >= 0.2 * len(route_trips[period][route_id])
                 }
             )
         offsets = {

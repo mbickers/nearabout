@@ -129,7 +129,7 @@ const isStreetLayer = (layer: LayerSpecification): layer is LineLayerSpecificati
 const isStreetLabelLayer = (layer: LayerSpecification): layer is SymbolLayerSpecification =>
   layer.type === "symbol" && layer.id.startsWith("roads_labels_");
 
-const basemapLayers = layers(SOURCE_ID, flavor, { lang: "en" })
+const basemapPhysicalLayers = layers(SOURCE_ID, flavor, { lang: "en" })
   .filter(
     (layer) =>
       [
@@ -198,7 +198,11 @@ const basemapLayers = layers(SOURCE_ID, flavor, { lang: "en" })
       return { ...layer, paint: { ...layer.paint, "fill-color": flavor.pier } };
     }
     return layer;
-  });
+  })
+  .map((style, index) => ({
+    z: isStreetLayer(style) ? 2 + index / 1000 : index / 1000,
+    style,
+  }));
 
 const BASEMAP_SOURCES: MapStyleFragment["sources"] = {
   [SOURCE_ID]: {
@@ -208,24 +212,6 @@ const BASEMAP_SOURCES: MapStyleFragment["sources"] = {
       '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   },
 };
-
-const basemapPhysicalLayers = basemapLayers.map((style, index) => ({
-  z: isStreetLayer(style) ? 2 + index / 1000 : index / 1000,
-  style,
-}));
-
-export const buildGeographyStyleFragment = (): MapStyleFragment => ({
-  sources: BASEMAP_SOURCES,
-  physicalLayers: basemapPhysicalLayers.filter(
-    ({ style }) =>
-      style.id !== "landuse_park" && !isStreetLayer(style) && !isStreetLabelLayer(style),
-  ),
-});
-
-export const buildParksStyleFragment = (): MapStyleFragment => ({
-  sources: BASEMAP_SOURCES,
-  physicalLayers: basemapPhysicalLayers.filter(({ style }) => style.id === "landuse_park"),
-});
 
 export const buildStreetsStyleFragment = (): MapStyleFragment => ({
   sources: BASEMAP_SOURCES,
@@ -551,7 +537,13 @@ export const LAYER_DEFINITIONS: {
 } = {
   geography: {
     label: "Geography",
-    mapStyleFragment: buildGeographyStyleFragment,
+    mapStyleFragment: () => ({
+      sources: BASEMAP_SOURCES,
+      physicalLayers: basemapPhysicalLayers.filter(
+        ({ style }) =>
+          style.id !== "landuse_park" && !isStreetLayer(style) && !isStreetLabelLayer(style),
+      ),
+    }),
   },
   streets: {
     label: "Streets",
@@ -559,7 +551,10 @@ export const LAYER_DEFINITIONS: {
   },
   parks: {
     label: "Parks",
-    mapStyleFragment: buildParksStyleFragment,
+    mapStyleFragment: () => ({
+      sources: BASEMAP_SOURCES,
+      physicalLayers: basemapPhysicalLayers.filter(({ style }) => style.id === "landuse_park"),
+    }),
   },
   bike_lanes: {
     label: "Bike lanes",
@@ -589,21 +584,4 @@ export const LAYER_DEFINITIONS: {
       </label>
     ),
   },
-};
-
-export const mapStyleFragmentForLayer = (layer: Layer): MapStyleFragment =>
-  (LAYER_DEFINITIONS[layer.kind].mapStyleFragment as (currentLayer: Layer) => MapStyleFragment)(
-    layer,
-  );
-
-export const LayerSpecificControls = ({
-  layer,
-  disabled,
-  onChange,
-}: LayerComponentProps<Layer>) => {
-  const Controls = LAYER_DEFINITIONS[layer.kind].Controls as
-    | ComponentType<LayerComponentProps<Layer>>
-    | undefined;
-
-  return Controls ? <Controls layer={layer} disabled={disabled} onChange={onChange} /> : null;
 };
