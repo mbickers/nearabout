@@ -474,18 +474,19 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
   );
   const entranceRadiusAtDetailZoom = 3.5;
   const entranceStrokeWidthAtDetailZoom = 1;
+  const entranceColor = "#888888";
+  const entranceStrokeColor = "#222222";
   const entranceMarkerPaint = {
     "circle-radius": interpolateOnZoom([
       [14, entranceRadiusAtDetailZoom],
       [18, 7],
     ]),
-    "circle-color": "#ffffff",
-    "circle-stroke-color": "#222222",
+    "circle-color": entranceColor,
+    "circle-stroke-color": entranceStrokeColor,
     "circle-stroke-width": interpolateOnZoom([
       [14, entranceStrokeWidthAtDetailZoom],
       [18, 1.5],
     ]),
-    // both must share the fade, or the dark ring appears before the fill
     "circle-opacity": DETAIL_FADE,
     "circle-stroke-opacity": DETAIL_FADE,
   } satisfies CircleLayerSpecification["paint"];
@@ -495,8 +496,8 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
         cx="7"
         cy="7"
         r={entranceRadiusAtDetailZoom}
-        fill={entranceMarkerPaint["circle-color"]}
-        stroke={entranceMarkerPaint["circle-stroke-color"]}
+        fill={entranceColor}
+        stroke={entranceStrokeColor}
         strokeWidth={entranceStrokeWidthAtDetailZoom}
       />
     </svg>
@@ -658,7 +659,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           items={[
             { label: "Local station", legend: localStationMarkerLegend },
             { label: "Express station", legend: expressStationMarkerLegend },
-            { label: "Entrance", legend: entranceMarkerLegend },
+            { label: "Entrance/exit", legend: entranceMarkerLegend },
           ]}
         />
         <label>
@@ -674,7 +675,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           >
             {SERVICE_PERIODS.map((period) => (
               <option key={period} value={period}>
-                {period.replace("_", " ")}
+                {period === "regular" ? "weekday" : period.replace("_", " ")}
               </option>
             ))}
           </select>
