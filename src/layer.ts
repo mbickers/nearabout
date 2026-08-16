@@ -6,4 +6,5 @@ export type Layer =
   | { kind: "geography"; parksVisible: boolean }
   | { kind: "streets" }
   | { kind: "bike_lanes" }
+  | { kind: "citibike_docks" }
   | { kind: "subway"; servicePeriod: ServicePeriod };

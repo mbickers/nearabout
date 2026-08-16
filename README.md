@@ -5,15 +5,18 @@ A stylized map of New York City, built with React + MapLibre GL JS on a self-hos
 
 ## Running it
 
-The map renders nothing until the basemap extract exists at `public/tiles/nyc.pmtiles`, so
+The map renders nothing until the basemap extract exists at `public/data/nyc.pmtiles`, so
 fetch it first. That needs the [`pmtiles`](https://github.com/protomaps/go-pmtiles) CLI and
 [`uv`](https://docs.astral.sh/uv/) on PATH.
 
 ```sh
-./data/fetch_basemap.py
-npm install
+npm run bootstrap
 npm run dev
 ```
+
+`bootstrap` copy-on-write clones the generated map data from the primary checkout, then installs
+the Node dependencies. Run `./data/fetch_basemap.py` first in the primary checkout if it does not
+already have the basemap.
 
 Then open the URL Vite prints.
 
