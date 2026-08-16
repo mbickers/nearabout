@@ -2,7 +2,7 @@
 
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["shapely"]
+# dependencies = []
 # ///
 
 import csv
@@ -12,32 +12,10 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-import shapely
-import shapely.geometry
-
 
 def read_csv(archive, name):
     with archive.open(f"{name}.txt") as raw:
         yield from csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig"))
-
-
-def dissolve_by_color(shapes_by_color):
-    """Merge the shapes of each colour into one feature, so no track is drawn twice.
-
-    - GTFS carries a shape per route and several more per route for the express, local and
-      short-turn variants, so a trunk would otherwise be drawn a dozen times over
-    - maplibre applies line-opacity to each fragment and has no per-layer equivalent for a line
-      layer, so a translucent line drawn twice is not translucent
-    - routes sharing a trunk share a colour, which is all the style reads
-    """
-    return [
-        {
-            "type": "Feature",
-            "geometry": shapely.geometry.mapping(shapely.line_merge(shapely.union_all(shapes))),
-            "properties": {"color": color},
-        }
-        for color, shapes in sorted(shapes_by_color.items())
-    ]
 
 
 def main():
@@ -76,12 +54,18 @@ def main():
     for route_id, shape_ids in sorted(shapes_of_route.items()):
         for shape_id in sorted(shape_ids):
             shapes_by_color.setdefault(routes[route_id]["color"], []).append(
-                shapely.geometry.LineString(
-                    [(lon, lat) for _, lon, lat in sorted(points[shape_id])]
-                )
+                [(lon, lat) for _, lon, lat in sorted(points[shape_id])]
             )
 
-    features = dissolve_by_color(shapes_by_color)
+    # Geometric normalization belongs to precompute_subway_offsets.py.
+    features = [
+        {
+            "type": "Feature",
+            "geometry": {"type": "MultiLineString", "coordinates": shapes},
+            "properties": {"color": color},
+        }
+        for color, shapes in sorted(shapes_by_color.items())
+    ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))

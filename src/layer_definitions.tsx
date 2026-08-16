@@ -568,7 +568,12 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
 
       return {
         sources: {
-          subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
+          subway_routes_offset: {
+            type: "geojson",
+            data: "/data/subway_routes_offset.geojson",
+            // The default 0.375px tolerance is about 5.4m at zoom 13 in NYC, so it drops 5m segments.
+            tolerance: 0,
+          },
           subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
           subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
           subway_station_routes: { type: "geojson", data: "/data/subway_station_routes.geojson" },
@@ -600,14 +605,15 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             style: {
               id: "subway_routes",
               type: "line",
-              source: "subway_routes",
+              source: "subway_routes_offset",
+              layout: { "line-cap": "square", "line-join": "round" },
               paint: {
                 "line-color": ["get", "color"],
                 "line-width": SUBWAY_WIDTH,
-                // the routes recede as the street detail fades in over the same zooms
-                "line-opacity": interpolateOnZoom([
-                  [DETAIL_FADE_IN, 1],
-                  [DETAIL_FADE_FULL, 0.7],
+                "line-offset": interpolateOnZoom([
+                  [11, ["*", ["get", "offset"], 2]],
+                  [14, ["*", ["get", "offset"], 5]],
+                  [16, ["*", ["get", "offset"], 8]],
                 ]),
               },
             },
