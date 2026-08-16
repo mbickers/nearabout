@@ -12,7 +12,7 @@ import type { ComponentType, ReactNode } from "react";
 import subwayBullets from "../public/data/subway_bullets.json";
 import type { Layer, ServicePeriod } from "./layer";
 import { SERVICE_PERIODS } from "./layer";
-import type { MapStyleFragment, PhysicalLayer } from "./Map";
+import type { LayerZ, MapStyleFragment, PhysicalLayer } from "./Map";
 
 const STREET_COLOR = "#d5d5d5";
 const SOURCE_ID = "protomaps";
@@ -76,13 +76,11 @@ const drawCaret = ({ color }: { color: string }) => {
 
 const PROTOMAPS_FLAVOR = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
 const PROTOMAPS_LAYERS = layers(SOURCE_ID, PROTOMAPS_FLAVOR, { lang: "en" });
-const BACKGROUND = 0;
-const STREETS = 2;
 
 const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
   id: string,
-  z: number,
-): { z: number; style: Style } => ({
+  z: LayerZ,
+): { z: LayerZ; style: Style } => ({
   z,
   style: PROTOMAPS_LAYERS.find((layer) => layer.id === id)! as Style,
 });
@@ -126,14 +124,14 @@ const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }
 const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   label: "Geography",
   mapStyleFragment: ({ parksVisible }) => {
-    const park = protomapsLayer<FillLayerSpecification>("landuse_park", BACKGROUND);
-    const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", BACKGROUND);
+    const park = protomapsLayer<FillLayerSpecification>("landuse_park", "background");
+    const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", "background");
 
     return {
       sources: PROTOMAPS_SOURCES,
       physicalLayers: [
-        protomapsLayer("background", BACKGROUND),
-        protomapsLayer("earth", BACKGROUND),
+        protomapsLayer("background", "background"),
+        protomapsLayer("earth", "background"),
         {
           ...park,
           style: {
@@ -154,12 +152,12 @@ const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
             ] as FilterSpecification,
           },
         },
-        protomapsLayer("landuse_aerodrome", BACKGROUND),
+        protomapsLayer("landuse_aerodrome", "background"),
         // Render water after parks because Hudson River Park is a large polygon that extends into
         // the river beyond its piers, and because many parks have water features.
-        protomapsLayer("water", BACKGROUND),
-        protomapsLayer("water_stream", BACKGROUND),
-        protomapsLayer("water_river", BACKGROUND),
+        protomapsLayer("water", "background"),
+        protomapsLayer("water_stream", "background"),
+        protomapsLayer("water_river", "background"),
         // piers are their own layer because they draw after water, which would otherwise cover them
         {
           ...pier,
@@ -185,7 +183,7 @@ const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
 };
 
 const streetLayer = (id: string): PhysicalLayer => {
-  const layer = protomapsLayer<LineLayerSpecification>(id, STREETS);
+  const layer = protomapsLayer<LineLayerSpecification>(id, "feature");
 
   return {
     ...layer,
@@ -206,7 +204,7 @@ const streetLayer = (id: string): PhysicalLayer => {
 };
 
 const streetLabelLayer = (id: string): PhysicalLayer => {
-  const layer = protomapsLayer<SymbolLayerSpecification>(id, 50);
+  const layer = protomapsLayer<SymbolLayerSpecification>(id, "label");
 
   return {
     ...layer,
@@ -240,7 +238,7 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
         streetLayer("roads_bridges_major"),
         streetLayer("roads_bridges_highway"),
         {
-          z: 10,
+          z: "feature",
           style: {
             id: "street_one_way",
             type: "symbol",
@@ -343,7 +341,7 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
         },
         physicalLayers: [
           {
-            z: 20,
+            z: "feature",
             style: {
               id: "bike_routes_protected",
               type: "line",
@@ -354,7 +352,7 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
             },
           },
           {
-            z: 21,
+            z: "feature",
             style: {
               id: "bike_routes_unprotected",
               type: "line",
@@ -365,7 +363,7 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
             },
           },
           {
-            z: 22,
+            z: "feature",
             style: {
               id: "bike_one_way",
               type: "symbol",
@@ -539,7 +537,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
         },
         physicalLayers: [
           {
-            z: 30,
+            z: "feature",
             style: {
               id: "subway_stations",
               // a flat extrusion rather than a fill: fill-extrusion-opacity is applied to the layer once,
@@ -560,7 +558,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 40,
+            z: "feature",
             style: {
               id: "subway_routes",
               type: "line",
@@ -577,7 +575,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 60,
+            z: "feature",
             style: {
               id: "subway_stations_local_overview",
               type: "circle",
@@ -592,7 +590,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 60,
+            z: "feature",
             style: {
               id: "subway_stations_express_overview",
               type: "circle",
@@ -607,7 +605,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 70,
+            z: "feature",
             style: {
               id: "subway_entrances",
               type: "circle",
@@ -617,7 +615,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 80,
+            z: "label",
             style: {
               id: "subway_station_routes",
               type: "symbol",
@@ -639,7 +637,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
           {
-            z: 90,
+            z: "label",
             style: {
               id: "subway_station_names",
               type: "symbol",

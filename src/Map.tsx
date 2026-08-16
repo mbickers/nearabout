@@ -2,7 +2,9 @@ import type { LayerSpecification, Map as MapInstance, StyleSpecification } from 
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 
-export type PhysicalLayer = { z: number; style: LayerSpecification };
+export type LayerZ = "background" | "feature" | "label";
+
+export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 
 export type MapStyleFragment = {
   sources: StyleSpecification["sources"];
@@ -17,18 +19,19 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
   styleFragmentsRef.current = styleFragments;
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
   // would otherwise trigger
-  const mapStyle = useMemo(
-    () => ({
+  const mapStyle = useMemo(() => {
+    const zOrder: Record<LayerZ, number> = { background: 0, feature: 1, label: 2 };
+
+    return {
       version: 8 as const,
       glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
       sources: Object.assign({}, ...styleFragments.map(({ sources }) => sources)),
       layers: styleFragments
         .flatMap(({ physicalLayers }) => physicalLayers)
-        .sort((first, second) => first.z - second.z)
+        .sort((first, second) => zOrder[first.z] - zOrder[second.z])
         .map(({ style }) => style),
-    }),
-    [styleFragments],
-  );
+    };
+  }, [styleFragments]);
 
   return (
     <>
