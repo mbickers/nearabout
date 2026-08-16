@@ -9,7 +9,6 @@ import type {
   SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
-import subwayBullets from "../public/data/subway_bullets.json";
 import type { Layer, ServicePeriod } from "./layer";
 import { SERVICE_PERIODS } from "./layer";
 import type { LayerZ, MapStyleFragment, PhysicalLayer } from "./Map";
@@ -88,7 +87,7 @@ const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
 const PROTOMAPS_SOURCES: MapStyleFragment["sources"] = {
   [SOURCE_ID]: {
     type: "vector",
-    url: "pmtiles:///tiles/nyc.pmtiles",
+    url: "pmtiles:///data/nyc.pmtiles",
     attribution:
       '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   },
@@ -108,6 +107,24 @@ type LayerDefinition<CurrentLayer extends Layer> = {
   label: string;
   mapStyleFragment: (layer: CurrentLayer) => MapStyleFragment;
   Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
+};
+
+const circleLegend = (paint: NonNullable<CircleLayerSpecification["paint"]>) => {
+  const initialZoomStop = (value: unknown) =>
+    Array.isArray(value) ? (value[4] as number) : (value as number | undefined);
+
+  return (
+    <svg width="14" height="14" aria-hidden="true">
+      <circle
+        cx="7"
+        cy="7"
+        r={initialZoomStop(paint["circle-radius"])}
+        fill={paint["circle-color"] as string}
+        stroke={paint["circle-stroke-color"] as string | undefined}
+        strokeWidth={initialZoomStop(paint["circle-stroke-width"])}
+      />
+    </svg>
+  );
 };
 
 const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }) => (
@@ -430,16 +447,62 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
   };
 })();
 
+const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = (() => {
+  const stationColor = "#0067b1";
+  const stationMarkerPaint = {
+    "circle-radius": interpolateOnZoom([
+      [DETAIL_FADE_IN, 5.25],
+      [18, 10.5],
+    ]),
+    "circle-color": stationColor,
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 0.75,
+  } satisfies CircleLayerSpecification["paint"];
+
+  return {
+    label: "Citi Bike docks",
+    mapStyleFragment: () => ({
+      sources: {
+        citibike_stations: {
+          type: "geojson",
+          data: "/data/citibike_stations.geojson",
+          attribution: '<a href="https://citibikenyc.com/system-data">Citi Bike</a>',
+        },
+      },
+      physicalLayers: [
+        {
+          z: "feature",
+          style: {
+            id: "citibike_stations",
+            type: "circle",
+            source: "citibike_stations",
+            minzoom: DETAIL_FADE_IN,
+            paint: stationMarkerPaint,
+          },
+        },
+      ],
+    }),
+    Controls: () => (
+      <LegendRows
+        items={[
+          {
+            label: "Station",
+            legend: circleLegend(stationMarkerPaint),
+          },
+        ]}
+      />
+    ),
+  };
+})();
+
 // express routes are diamonds on the official map, everything else is a disc
-const drawBullet = ({
-  route,
-  color,
-  text_color,
-}: {
+type SubwayBullet = {
   route: string;
   color: string;
   text_color: string;
-}) => {
+};
+
+const drawBullet = ({ route, color, text_color }: SubwayBullet) => {
   const bulletPixels = 44;
   const canvas = document.createElement("canvas");
   canvas.width = bulletPixels;
@@ -474,62 +537,29 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
     "circle-radius": 3.75,
     "circle-color": "#000000",
   } satisfies CircleLayerSpecification["paint"];
-  const localStationMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={localStationMarkerPaint["circle-radius"]}
-        fill={localStationMarkerPaint["circle-color"]}
-      />
-    </svg>
-  );
+  const localStationMarkerLegend = circleLegend(localStationMarkerPaint);
   const expressStationMarkerPaint = {
     "circle-radius": 3.5,
     "circle-color": "#ffffff",
     "circle-stroke-color": "#000000",
     "circle-stroke-width": 1.5,
   } satisfies CircleLayerSpecification["paint"];
-  const expressStationMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={expressStationMarkerPaint["circle-radius"]}
-        fill={expressStationMarkerPaint["circle-color"]}
-        stroke={expressStationMarkerPaint["circle-stroke-color"]}
-        strokeWidth={expressStationMarkerPaint["circle-stroke-width"]}
-      />
-    </svg>
-  );
-  const entranceRadiusAtDetailZoom = 3.5;
-  const entranceStrokeWidthAtDetailZoom = 1;
+  const expressStationMarkerLegend = circleLegend(expressStationMarkerPaint);
   const entranceMarkerPaint = {
     "circle-radius": interpolateOnZoom([
-      [14, entranceRadiusAtDetailZoom],
+      [DETAIL_FADE_IN, 3.5],
       [18, 7],
     ]),
     "circle-color": "#888888",
     "circle-stroke-color": "#222222",
     "circle-stroke-width": interpolateOnZoom([
-      [14, entranceStrokeWidthAtDetailZoom],
+      [14, 1],
       [18, 1.5],
     ]),
     "circle-opacity": DETAIL_FADE,
     "circle-stroke-opacity": DETAIL_FADE,
   } satisfies CircleLayerSpecification["paint"];
-  const entranceMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={entranceRadiusAtDetailZoom}
-        fill={entranceMarkerPaint["circle-color"]}
-        stroke={entranceMarkerPaint["circle-stroke-color"]}
-        strokeWidth={entranceStrokeWidthAtDetailZoom}
-      />
-    </svg>
-  );
+  const entranceMarkerLegend = circleLegend(entranceMarkerPaint);
 
   return {
     label: "Subway",
@@ -673,7 +703,9 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
         ],
-        addStyleHook: (map) => {
+        addStyleHook: async (map) => {
+          const response = await fetch("/data/subway_bullets.json");
+          const subwayBullets = (await response.json()) as SubwayBullet[];
           for (const bullet of subwayBullets) {
             if (!map.hasImage(bullet.route))
               map.addImage(bullet.route, drawBullet(bullet), { pixelRatio: 2 });
@@ -719,5 +751,6 @@ export const LAYER_DEFINITIONS: {
   geography: geographyDefinition,
   streets: streetsDefinition,
   bike_lanes: bikeLanesDefinition,
+  citibike_docks: citibikeDocksDefinition,
   subway: subwayDefinition,
 };
