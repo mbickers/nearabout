@@ -35,6 +35,71 @@ def line_features(collection):
     ]
 
 
+def derive_station_marker_offsets(stations, subway_offsets):
+    segments_by_color = {}
+    for feature in subway_offsets["features"]:
+        for start, end in pairwise(feature["geometry"]["coordinates"]):
+            segments_by_color.setdefault(feature["properties"]["color"], []).append(
+                (start, end, feature["properties"]["offset"])
+            )
+
+    stations_by_location = {}
+    for feature in stations["features"]:
+        key = tuple(feature["geometry"]["coordinates"]), feature["properties"]["station_name"]
+        stations_by_location.setdefault(key, []).append(feature)
+
+    features = []
+    for (position, _), station_routes in stations_by_location.items():
+        marker = next(feature for feature in station_routes if "label" in feature["properties"])
+        properties = dict(marker["properties"])
+        for period in ("regular", "late_night", "weekend"):
+            vectors = []
+            for color in {
+                feature["properties"]["color"]
+                for feature in station_routes
+                if f"offset_{period}" in feature["properties"]
+            }:
+
+                def distance_to_segment(segment, station_position=position):
+                    start, end, _ = segment
+                    segment_x, segment_y = projected_delta(start, end)
+                    point_x, point_y = projected_delta(start, station_position)
+                    length_squared = segment_x**2 + segment_y**2
+                    fraction = max(
+                        0,
+                        min(
+                            1,
+                            (point_x * segment_x + point_y * segment_y) / length_squared,
+                        ),
+                    )
+                    return math.hypot(
+                        point_x - fraction * segment_x,
+                        point_y - fraction * segment_y,
+                    )
+
+                start, end, offset = min(segments_by_color[color], key=distance_to_segment)
+                segment_x, segment_y = projected_delta(start, end)
+                length = math.hypot(segment_x, segment_y)
+                vectors.append((offset * segment_y / length, offset * segment_x / length))
+
+            average_x = sum(vector[0] for vector in vectors) / len(vectors) if vectors else 0
+            average_y = sum(vector[1] for vector in vectors) / len(vectors) if vectors else 0
+            for zoom, pixels in ((11, 2), (14, 5)):
+                properties[f"marker_offset_{period}_{zoom}"] = [
+                    round(average_x * pixels, 6),
+                    round(average_y * pixels, 6),
+                ]
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": list(position)},
+                "properties": properties,
+            }
+        )
+
+    return {"type": "FeatureCollection", "features": features}
+
+
 def derive_subway_offsets(
     subway,
     protected_bike,
@@ -47,7 +112,7 @@ def derive_subway_offsets(
 ):
     # Offset derivation pipeline:
     # - Split out-and-back paths, remove legs covered by longer same-color paths, and dissolve.
-    # - Orient every resulting path along its dominant axis and rank route colors by trunk priority.
+    # - Orient paths by their Manhattan section when present and rank colors by trunk priority.
     # - Resample subway and protected-bike paths into 5m segments and index them spatially.
     # - Count earlier-priority subway colors and protected bike lanes that run nearby and parallel.
     # - Average each path over 100m, round to whole slots, and bridge short downward gaps.
@@ -102,7 +167,15 @@ def derive_subway_offsets(
         geometry = shapely.line_merge(geometry)
         for line in shapely.get_parts(geometry):
             coordinates = [list(coordinate) for coordinate in line.coords]
-            delta_x, delta_y = projected_delta(coordinates[0], coordinates[-1])
+            manhattan_coordinates = [
+                coordinate
+                for coordinate in coordinates
+                if -74.03 <= coordinate[0] <= -73.96 and 40.68 <= coordinate[1] <= 40.88
+            ]
+            direction_coordinates = (
+                manhattan_coordinates if len(manhattan_coordinates) > 1 else coordinates
+            )
+            delta_x, delta_y = projected_delta(direction_coordinates[0], direction_coordinates[-1])
             if (abs(delta_y) >= abs(delta_x) and delta_y < 0) or (
                 abs(delta_x) > abs(delta_y) and delta_x < 0
             ):
@@ -361,9 +434,17 @@ def main():
             feature for feature in bike["features"] if feature["properties"]["facilitycl"] == "I"
         ],
     }
-    output_path = data_dir / "subway_routes_offset.geojson"
-    output_path.write_text(json.dumps(derive_subway_offsets(subway, protected_bike)))
-    print(f"Wrote {output_path}")
+    subway_offsets = derive_subway_offsets(subway, protected_bike)
+    subway_output_path = data_dir / "subway_routes_offset.geojson"
+    subway_output_path.write_text(json.dumps(subway_offsets))
+    print(f"Wrote {subway_output_path}")
+
+    station_routes = json.loads((data_dir / "subway_station_routes.geojson").read_text())
+    station_output_path = data_dir / "subway_station_markers_offset.geojson"
+    station_output_path.write_text(
+        json.dumps(derive_station_marker_offsets(station_routes, subway_offsets))
+    )
+    print(f"Wrote {station_output_path}")
 
 
 if __name__ == "__main__":

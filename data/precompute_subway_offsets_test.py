@@ -9,7 +9,10 @@ import math
 import unittest
 from itertools import pairwise
 
-from precompute_subway_offsets import derive_subway_offsets
+from precompute_subway_offsets import (
+    derive_station_marker_offsets,
+    derive_subway_offsets,
+)
 
 
 def collection(lines):
@@ -27,6 +30,110 @@ def collection(lines):
 
 
 class DeriveSubwayOffsetsTest(unittest.TestCase):
+    def test_station_marker_averages_line_offset_vectors(self):
+        stations = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [-74, 40.7]},
+                    "properties": {
+                        "station_name": "Station",
+                        "color": "A",
+                        "label": "Station",
+                        "offset_regular": [12, 0],
+                    },
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [-74, 40.7]},
+                    "properties": {
+                        "station_name": "Station",
+                        "color": "B",
+                        "offset_regular": [36, 0],
+                    },
+                },
+            ],
+        }
+        subway_offsets = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-74, 40.699], [-74, 40.701]],
+                    },
+                    "properties": {"color": "A", "offset": 1},
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-74, 40.699], [-74, 40.701]],
+                    },
+                    "properties": {"color": "B", "offset": 3},
+                },
+            ],
+        }
+
+        marker = derive_station_marker_offsets(stations, subway_offsets)["features"][0]
+
+        self.assertEqual(marker["properties"]["marker_offset_regular_11"], [4, 0])
+        self.assertEqual(marker["properties"]["marker_offset_regular_14"], [10, 0])
+
+    def test_station_marker_uses_only_routes_serving_during_period(self):
+        stations = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [-74, 40.7]},
+                    "properties": {
+                        "station_name": "Station",
+                        "color": "A",
+                        "label": "Station",
+                        "offset_regular": [12, 0],
+                    },
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [-74, 40.7]},
+                    "properties": {
+                        "station_name": "Station",
+                        "color": "B",
+                        "offset_weekend": [12, 0],
+                    },
+                },
+            ],
+        }
+        subway_offsets = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-74, 40.699], [-74, 40.701]],
+                    },
+                    "properties": {"color": "A", "offset": 1},
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-74.001, 40.7], [-73.999, 40.7]],
+                    },
+                    "properties": {"color": "B", "offset": 1},
+                },
+            ],
+        }
+
+        marker = derive_station_marker_offsets(stations, subway_offsets)["features"][0]
+
+        self.assertEqual(marker["properties"]["marker_offset_regular_11"], [2, 0])
+        self.assertEqual(marker["properties"]["marker_offset_weekend_11"], [0, 2])
+
     def test_western_manhattan_trunk_keeps_priority(self):
         result = derive_subway_offsets(
             collection(
@@ -209,6 +316,31 @@ class DeriveSubwayOffsetsTest(unittest.TestCase):
 
         coordinates = result["features"][0]["geometry"]["coordinates"]
         self.assertLess(coordinates[0][1], coordinates[-1][1])
+
+    def test_direction_is_anchored_to_manhattan_trunk(self):
+        result = derive_subway_offsets(
+            collection(
+                [
+                    (
+                        "A",
+                        [
+                            [-73.985, 40.76],
+                            [-74, 40.7],
+                            [-73.85, 40.69],
+                        ],
+                    )
+                ]
+            ),
+            collection([]),
+        )
+        manhattan_coordinates = [
+            coordinate
+            for feature in result["features"]
+            for coordinate in feature["geometry"]["coordinates"]
+            if -74.03 <= coordinate[0] <= -73.96
+        ]
+
+        self.assertLess(manhattan_coordinates[0][1], manhattan_coordinates[-1][1])
 
     def test_offsets_converge_at_branch_junctions(self):
         junction = [-74, 40.702]
