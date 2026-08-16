@@ -29,10 +29,11 @@ const DETAIL_FADE = interpolateOnZoom([
 ]);
 
 const DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM = 3.5;
-const DETAIL_MARKER_RADIUS = interpolateOnZoom([
+const DETAIL_MARKER_RADIUS_STOPS: [zoom: number, radius: number][] = [
   [DETAIL_FADE_IN, DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM],
   [18, 7],
-]);
+];
+const DETAIL_MARKER_RADIUS = interpolateOnZoom(DETAIL_MARKER_RADIUS_STOPS);
 
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [DETAIL_FADE_IN, 1.9],
@@ -439,7 +440,9 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
   const stationColor = "#0067b1";
   const stationScale = 1.5;
   const stationMarkerPaint = {
-    "circle-radius": ["*", DETAIL_MARKER_RADIUS, stationScale] as ExpressionSpecification,
+    "circle-radius": interpolateOnZoom(
+      DETAIL_MARKER_RADIUS_STOPS.map(([zoom, radius]) => [zoom, radius * stationScale]),
+    ),
     "circle-color": stationColor,
     "circle-stroke-color": "#ffffff",
     "circle-stroke-width": 0.75,
