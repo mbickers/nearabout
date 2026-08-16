@@ -59,14 +59,15 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
           position: "fixed",
           right: 10,
           top: 10,
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
+          display: "grid",
+          gap: 2,
           padding: "2px 6px",
           background: "#ffffff",
           font: "12px ui-monospace, monospace",
         }}
       >
+        <strong>debug</strong>
+        <span>branch: {import.meta.env.VITE_GIT_BRANCH}</span>
         <span>zoom: {zoom.toFixed(2)}</span>
       </div>
     </>
