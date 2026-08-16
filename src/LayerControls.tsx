@@ -22,7 +22,8 @@ export const LayerControls = ({
     }}
   >
     {layers.map(([enabled, layer]) => {
-      const Controls = LAYER_DEFINITIONS[layer.kind].Controls as
+      const definition = LAYER_DEFINITIONS[layer.kind];
+      const Controls = definition.Controls as
         | ComponentType<{
             layer: Layer;
             disabled: boolean;
@@ -46,9 +47,9 @@ export const LayerControls = ({
                 )
               }
             />
-            {LAYER_DEFINITIONS[layer.kind].label}
+            {definition.label}
           </label>
-          <div style={{ marginLeft: 22 }}>
+          <div style={{ display: "grid", gap: 4, marginLeft: 22 }}>
             {Controls ? (
               <Controls
                 layer={layer}
