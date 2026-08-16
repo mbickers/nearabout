@@ -2,6 +2,7 @@ import { layers, namedFlavor } from "@protomaps/basemaps";
 import type {
   CircleLayerSpecification,
   ExpressionSpecification,
+  FillLayerSpecification,
   FilterSpecification,
   LayerSpecification,
   LineLayerSpecification,
@@ -11,7 +12,7 @@ import type { ComponentType, ReactNode } from "react";
 import subwayBullets from "../public/data/subway_bullets.json";
 import type { Layer, ServicePeriod } from "./layer";
 import { SERVICE_PERIODS } from "./layer";
-import type { MapStyleFragment } from "./Map";
+import type { MapStyleFragment, PhysicalLayer } from "./Map";
 
 const STREET_COLOR = "#d5d5d5";
 const SOURCE_ID = "protomaps";
@@ -75,6 +76,17 @@ const drawCaret = ({ color }: { color: string }) => {
 
 const PROTOMAPS_FLAVOR = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
 const PROTOMAPS_LAYERS = layers(SOURCE_ID, PROTOMAPS_FLAVOR, { lang: "en" });
+const BACKGROUND = 0;
+const WATER = 1;
+const STREETS = 2;
+
+const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
+  id: string,
+  z: number,
+): { z: number; style: Style } => ({
+  z,
+  style: PROTOMAPS_LAYERS.find((layer) => layer.id === id)! as Style,
+});
 
 const PROTOMAPS_SOURCES: MapStyleFragment["sources"] = {
   [SOURCE_ID]: {
@@ -114,138 +126,167 @@ const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }
 
 const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   label: "Geography",
-  mapStyleFragment: () => ({
-    sources: PROTOMAPS_SOURCES,
-    physicalLayers: PROTOMAPS_LAYERS.map((style, index) => ({
-      z: index / 1000,
-      // piers are their own layer because they draw after water, which would otherwise cover them
-      style:
-        style.type === "fill" && style.id === "landuse_pier"
-          ? { ...style, paint: { ...style.paint, "fill-color": PROTOMAPS_FLAVOR.pier } }
-          : style,
-    })).filter(({ style }) =>
-      [
-        "background",
-        "earth",
-        "landuse_aerodrome",
-        "landuse_pier",
-        "water",
-        "water_stream",
-        "water_river",
-      ].includes(style.id),
-    ),
-  }),
+  mapStyleFragment: () => {
+    const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", WATER);
+
+    return {
+      sources: PROTOMAPS_SOURCES,
+      physicalLayers: [
+        protomapsLayer("background", BACKGROUND),
+        protomapsLayer("earth", BACKGROUND),
+        protomapsLayer("landuse_aerodrome", BACKGROUND),
+        protomapsLayer("water", WATER),
+        protomapsLayer("water_stream", WATER),
+        protomapsLayer("water_river", WATER),
+        // piers are their own layer because they draw after water, which would otherwise cover them
+        {
+          ...pier,
+          style: {
+            ...pier.style,
+            paint: { ...pier.style.paint, "fill-color": PROTOMAPS_FLAVOR.pier },
+          },
+        },
+      ],
+    };
+  },
 };
 
 const parksDefinition: LayerDefinition<LayerOfKind<"parks">> = {
   label: "Parks",
-  mapStyleFragment: () => ({
-    sources: PROTOMAPS_SOURCES,
-    physicalLayers: PROTOMAPS_LAYERS.map((style, index) => ({
-      z: index / 1000,
-      style: {
-        ...style,
-        // the stock filter also takes wood, grass and sand, which the paint shades separately
-        // and which show up as lawns and ball fields inside a park
-        filter: [
-          "in",
-          "kind",
-          "national_park",
-          "park",
-          "cemetery",
-          "protected_area",
-          "nature_reserve",
-          "forest",
-          "golf_course",
-        ] as FilterSpecification,
-      },
-    })).filter(({ style }) => style.type === "fill" && style.id === "landuse_park"),
-  }),
+  mapStyleFragment: () => {
+    const park = protomapsLayer<FillLayerSpecification>("landuse_park", BACKGROUND);
+
+    return {
+      sources: PROTOMAPS_SOURCES,
+      physicalLayers: [
+        {
+          ...park,
+          style: {
+            ...park.style,
+            // the stock filter also takes wood, grass and sand, which the paint shades separately
+            // and which show up as lawns and ball fields inside a park
+            filter: [
+              "in",
+              "kind",
+              "national_park",
+              "park",
+              "cemetery",
+              "protected_area",
+              "nature_reserve",
+              "forest",
+              "golf_course",
+            ] as FilterSpecification,
+          },
+        },
+      ],
+    };
+  },
 };
 
-// the four road classes this map renders, over surface, bridge and tunnel. a casing carries the
-// dashes the basemap gives a tunnel, and service is the driveway, parking aisle and alley part of
-// the minor class
-const isStreetLayer = (layer: LayerSpecification): layer is LineLayerSpecification =>
-  layer.type === "line" &&
-  layer.id.startsWith("roads_") &&
-  !layer.id.includes("casing") &&
-  !layer.id.includes("service") &&
-  ["minor", "link", "major", "highway"].some((kind) => layer.id.includes(kind));
+const streetLayer = (id: string): PhysicalLayer => {
+  const layer = protomapsLayer<LineLayerSpecification>(id, STREETS);
 
-const isStreetLabelLayer = (layer: LayerSpecification): layer is SymbolLayerSpecification =>
-  layer.type === "symbol" && layer.id.startsWith("roads_labels_");
+  return {
+    ...layer,
+    style: {
+      ...layer.style,
+      minzoom: DETAIL_FADE_IN,
+      // only the surface minor layer excludes service in its own filter, so the bridge and
+      // tunnel variants would otherwise render driveways and roadways inside a pier shed
+      filter: ["all", layer.style.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
+      // the stock paint varies from white to grey by class and by tunnel
+      paint: {
+        "line-color": STREET_COLOR,
+        "line-width": layer.style.paint?.["line-width"],
+        "line-opacity": DETAIL_FADE,
+      },
+    },
+  };
+};
+
+const streetLabelLayer = (id: string): PhysicalLayer => {
+  const layer = protomapsLayer<SymbolLayerSpecification>(id, 50);
+
+  return {
+    ...layer,
+    style: {
+      ...layer.style,
+      // minor names have a higher stock minzoom than the streets
+      minzoom: Math.max(layer.style.minzoom ?? 0, DETAIL_FADE_IN),
+      paint: { ...layer.style.paint, "text-opacity": DETAIL_FADE },
+    },
+  };
+};
 
 const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
   label: "Streets",
-  mapStyleFragment: () => ({
-    sources: PROTOMAPS_SOURCES,
-    physicalLayers: [
-      ...PROTOMAPS_LAYERS.filter(isStreetLayer).map((style, index) => ({
-        z: 2 + index / 1000,
-        style: {
-          ...style,
-          minzoom: DETAIL_FADE_IN,
-          // only the surface minor layer excludes service in its own filter, so the bridge and
-          // tunnel variants would otherwise render driveways and roadways inside a pier shed
-          filter: ["all", style.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
-          // the stock paint varies from white to grey by class and by tunnel
-          paint: {
-            "line-color": STREET_COLOR,
-            "line-width": style.paint?.["line-width"],
-            "line-opacity": DETAIL_FADE,
+  mapStyleFragment: () => {
+    const minorStreetLabels = streetLabelLayer("roads_labels_minor");
+
+    return {
+      sources: PROTOMAPS_SOURCES,
+      physicalLayers: [
+        streetLayer("roads_tunnels_minor"),
+        streetLayer("roads_tunnels_link"),
+        streetLayer("roads_tunnels_major"),
+        streetLayer("roads_tunnels_highway"),
+        streetLayer("roads_link"),
+        streetLayer("roads_minor"),
+        streetLayer("roads_major"),
+        streetLayer("roads_highway"),
+        streetLayer("roads_bridges_minor"),
+        streetLayer("roads_bridges_link"),
+        streetLayer("roads_bridges_major"),
+        streetLayer("roads_bridges_highway"),
+        {
+          z: 10,
+          style: {
+            id: "street_one_way",
+            type: "symbol",
+            source: SOURCE_ID,
+            "source-layer": "roads",
+            minzoom: DETAIL_FADE_IN,
+            // the same street kinds rendered above, so that no caret is drawn over an absent street.
+            // reversible streets have no fixed direction
+            filter: [
+              "all",
+              ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
+              ["!=", ["get", "kind_detail"], "service"],
+              ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
+            ],
+            layout: {
+              "symbol-placement": "line",
+              "icon-image": "street_caret",
+              // -1 is the one-way that runs against the digitized geometry
+              "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
+              "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+              "symbol-spacing": 100,
+            },
+            paint: { "icon-opacity": DETAIL_FADE },
           },
         },
-      })),
-      {
-        z: 10,
-        style: {
-          id: "street_one_way",
-          type: "symbol",
-          source: SOURCE_ID,
-          "source-layer": "roads",
-          minzoom: DETAIL_FADE_IN,
-          // the same streets isStreetLayer renders, so that no caret is drawn over an absent street.
-          // reversible streets have no fixed direction
-          filter: [
-            "all",
-            ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
-            ["!=", ["get", "kind_detail"], "service"],
-            ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
-          ],
-          layout: {
-            "symbol-placement": "line",
-            "icon-image": "street_caret",
-            // -1 is the one-way that runs against the digitized geometry
-            "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
-            "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-            "symbol-spacing": 100,
+        {
+          ...minorStreetLabels,
+          style: {
+            ...minorStreetLabels.style,
+            // the minor filter also matches path and service-road labels, which have no line beneath
+            filter: [
+              "all",
+              ["==", "kind", "minor_road"],
+              ["!=", "kind_detail", "service"],
+            ] as FilterSpecification,
           },
-          paint: { "icon-opacity": DETAIL_FADE },
         },
+        streetLabelLayer("roads_labels_major"),
+      ],
+      addStyleHook: (map) => {
+        if (map.hasImage("street_caret")) return;
+        map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
+          pixelRatio: CARET_RESOLUTION,
+        });
       },
-      ...PROTOMAPS_LAYERS.filter(isStreetLabelLayer).map((style) => ({
-        z: 50,
-        style: {
-          ...style,
-          // minor names have a higher stock minzoom than the streets
-          minzoom: Math.max(style.minzoom ?? 0, DETAIL_FADE_IN),
-          // the minor filter also matches the path and other kinds, and service roads within the
-          // minor kind; this map renders none of those, so their labels would have no line beneath
-          filter: (style.id === "roads_labels_minor"
-            ? ["all", ["==", "kind", "minor_road"], ["!=", "kind_detail", "service"]]
-            : style.filter) as FilterSpecification,
-          paint: { ...style.paint, "text-opacity": DETAIL_FADE },
-        },
-      })),
-    ],
-    addStyleHook: (map) => {
-      if (map.hasImage("street_caret")) return;
-      map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
-        pixelRatio: CARET_RESOLUTION,
-      });
-    },
-  }),
+    };
+  },
 };
 
 const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
@@ -456,15 +497,13 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
   );
   const entranceRadiusAtDetailZoom = 3.5;
   const entranceStrokeWidthAtDetailZoom = 1;
-  const entranceColor = "#888888";
-  const entranceStrokeColor = "#222222";
   const entranceMarkerPaint = {
     "circle-radius": interpolateOnZoom([
       [14, entranceRadiusAtDetailZoom],
       [18, 7],
     ]),
-    "circle-color": entranceColor,
-    "circle-stroke-color": entranceStrokeColor,
+    "circle-color": "#888888",
+    "circle-stroke-color": "#222222",
     "circle-stroke-width": interpolateOnZoom([
       [14, entranceStrokeWidthAtDetailZoom],
       [18, 1.5],
@@ -478,8 +517,8 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
         cx="7"
         cy="7"
         r={entranceRadiusAtDetailZoom}
-        fill={entranceColor}
-        stroke={entranceStrokeColor}
+        fill={entranceMarkerPaint["circle-color"]}
+        stroke={entranceMarkerPaint["circle-stroke-color"]}
         strokeWidth={entranceStrokeWidthAtDetailZoom}
       />
     </svg>
