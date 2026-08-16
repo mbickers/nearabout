@@ -73,99 +73,10 @@ const drawCaret = ({ color }: { color: string }) => {
   return context.getImageData(0, 0, canvas.width, canvas.height);
 };
 
-// the four road classes this map renders, over surface, bridge and tunnel. a casing carries the
-// dashes the basemap gives a tunnel, and service is the driveway, parking aisle and alley part of
-// the minor class
-const isStreetLayer = (layer: LayerSpecification): layer is LineLayerSpecification =>
-  layer.type === "line" &&
-  layer.id.startsWith("roads_") &&
-  !layer.id.includes("casing") &&
-  !layer.id.includes("service") &&
-  ["minor", "link", "major", "highway"].some((kind) => layer.id.includes(kind));
+const PROTOMAPS_FLAVOR = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
+const PROTOMAPS_LAYERS = layers(SOURCE_ID, PROTOMAPS_FLAVOR, { lang: "en" });
 
-const isStreetLabelLayer = (layer: LayerSpecification): layer is SymbolLayerSpecification =>
-  layer.type === "symbol" && layer.id.startsWith("roads_labels_");
-
-const basemapPhysicalLayers = (() => {
-  const flavor = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
-
-  return layers(SOURCE_ID, flavor, { lang: "en" })
-    .filter(
-      (layer) =>
-        [
-          "background",
-          "earth",
-          "landuse_aerodrome",
-          "landuse_park",
-          "landuse_pier",
-          "water",
-          "water_stream",
-          "water_river",
-        ].includes(layer.id) ||
-        isStreetLayer(layer) ||
-        isStreetLabelLayer(layer),
-    )
-    .map((layer) => {
-      if (isStreetLayer(layer)) {
-        return {
-          ...layer,
-          minzoom: DETAIL_FADE_IN,
-          // only the surface minor layer excludes service in its own filter, so the bridge and
-          // tunnel variants would otherwise render driveways and roadways inside a pier shed
-          filter: ["all", layer.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
-          // the stock paint varies from white to grey by class and by tunnel
-          paint: {
-            "line-color": STREET_COLOR,
-            "line-width": layer.paint?.["line-width"],
-            "line-opacity": DETAIL_FADE,
-          },
-        };
-      }
-      if (isStreetLabelLayer(layer)) {
-        return {
-          ...layer,
-          // minor names have a higher stock minzoom than the streets
-          minzoom: Math.max(layer.minzoom ?? 0, DETAIL_FADE_IN),
-          // the minor filter also matches the path and other kinds, and service roads within the
-          // minor kind; this map renders none of those, so their labels would have no line beneath
-          filter: (layer.id === "roads_labels_minor"
-            ? ["all", ["==", "kind", "minor_road"], ["!=", "kind_detail", "service"]]
-            : layer.filter) as FilterSpecification,
-          paint: { ...layer.paint, "text-opacity": DETAIL_FADE },
-        };
-      }
-      if (layer.type !== "fill") return layer;
-      if (layer.id === "landuse_park") {
-        // the stock filter also takes wood, grass and sand, which the paint shades separately
-        // and which show up as lawns and ball fields inside a park
-        return {
-          ...layer,
-          filter: [
-            "in",
-            "kind",
-            "national_park",
-            "park",
-            "cemetery",
-            "protected_area",
-            "nature_reserve",
-            "forest",
-            "golf_course",
-          ] as FilterSpecification,
-        };
-      }
-      // piers are their own layer because they draw after water, which would otherwise cover them
-      if (layer.id === "landuse_pier") {
-        return { ...layer, paint: { ...layer.paint, "fill-color": flavor.pier } };
-      }
-      return layer;
-    })
-    .map((style, index) => ({
-      z: isStreetLayer(style) ? 2 + index / 1000 : index / 1000,
-      style,
-    }));
-})();
-
-const BASEMAP_SOURCES: MapStyleFragment["sources"] = {
+const PROTOMAPS_SOURCES: MapStyleFragment["sources"] = {
   [SOURCE_ID]: {
     type: "vector",
     url: "pmtiles:///tiles/nyc.pmtiles",
@@ -204,10 +115,24 @@ const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }
 const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   label: "Geography",
   mapStyleFragment: () => ({
-    sources: BASEMAP_SOURCES,
-    physicalLayers: basemapPhysicalLayers.filter(
-      ({ style }) =>
-        style.id !== "landuse_park" && !isStreetLayer(style) && !isStreetLabelLayer(style),
+    sources: PROTOMAPS_SOURCES,
+    physicalLayers: PROTOMAPS_LAYERS.map((style, index) => ({
+      z: index / 1000,
+      // piers are their own layer because they draw after water, which would otherwise cover them
+      style:
+        style.type === "fill" && style.id === "landuse_pier"
+          ? { ...style, paint: { ...style.paint, "fill-color": PROTOMAPS_FLAVOR.pier } }
+          : style,
+    })).filter(({ style }) =>
+      [
+        "background",
+        "earth",
+        "landuse_aerodrome",
+        "landuse_pier",
+        "water",
+        "water_stream",
+        "water_river",
+      ].includes(style.id),
     ),
   }),
 };
@@ -215,17 +140,63 @@ const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
 const parksDefinition: LayerDefinition<LayerOfKind<"parks">> = {
   label: "Parks",
   mapStyleFragment: () => ({
-    sources: BASEMAP_SOURCES,
-    physicalLayers: basemapPhysicalLayers.filter(({ style }) => style.id === "landuse_park"),
+    sources: PROTOMAPS_SOURCES,
+    physicalLayers: PROTOMAPS_LAYERS.map((style, index) => ({
+      z: index / 1000,
+      style: {
+        ...style,
+        // the stock filter also takes wood, grass and sand, which the paint shades separately
+        // and which show up as lawns and ball fields inside a park
+        filter: [
+          "in",
+          "kind",
+          "national_park",
+          "park",
+          "cemetery",
+          "protected_area",
+          "nature_reserve",
+          "forest",
+          "golf_course",
+        ] as FilterSpecification,
+      },
+    })).filter(({ style }) => style.type === "fill" && style.id === "landuse_park"),
   }),
 };
+
+// the four road classes this map renders, over surface, bridge and tunnel. a casing carries the
+// dashes the basemap gives a tunnel, and service is the driveway, parking aisle and alley part of
+// the minor class
+const isStreetLayer = (layer: LayerSpecification): layer is LineLayerSpecification =>
+  layer.type === "line" &&
+  layer.id.startsWith("roads_") &&
+  !layer.id.includes("casing") &&
+  !layer.id.includes("service") &&
+  ["minor", "link", "major", "highway"].some((kind) => layer.id.includes(kind));
+
+const isStreetLabelLayer = (layer: LayerSpecification): layer is SymbolLayerSpecification =>
+  layer.type === "symbol" && layer.id.startsWith("roads_labels_");
 
 const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
   label: "Streets",
   mapStyleFragment: () => ({
-    sources: BASEMAP_SOURCES,
+    sources: PROTOMAPS_SOURCES,
     physicalLayers: [
-      ...basemapPhysicalLayers.filter(({ style }) => isStreetLayer(style)),
+      ...PROTOMAPS_LAYERS.filter(isStreetLayer).map((style, index) => ({
+        z: 2 + index / 1000,
+        style: {
+          ...style,
+          minzoom: DETAIL_FADE_IN,
+          // only the surface minor layer excludes service in its own filter, so the bridge and
+          // tunnel variants would otherwise render driveways and roadways inside a pier shed
+          filter: ["all", style.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
+          // the stock paint varies from white to grey by class and by tunnel
+          paint: {
+            "line-color": STREET_COLOR,
+            "line-width": style.paint?.["line-width"],
+            "line-opacity": DETAIL_FADE,
+          },
+        },
+      })),
       {
         z: 10,
         style: {
@@ -253,9 +224,20 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
           paint: { "icon-opacity": DETAIL_FADE },
         },
       },
-      ...basemapPhysicalLayers
-        .filter(({ style }) => isStreetLabelLayer(style))
-        .map(({ style }) => ({ z: 50, style })),
+      ...PROTOMAPS_LAYERS.filter(isStreetLabelLayer).map((style) => ({
+        z: 50,
+        style: {
+          ...style,
+          // minor names have a higher stock minzoom than the streets
+          minzoom: Math.max(style.minzoom ?? 0, DETAIL_FADE_IN),
+          // the minor filter also matches the path and other kinds, and service roads within the
+          // minor kind; this map renders none of those, so their labels would have no line beneath
+          filter: (style.id === "roads_labels_minor"
+            ? ["all", ["==", "kind", "minor_road"], ["!=", "kind_detail", "service"]]
+            : style.filter) as FilterSpecification,
+          paint: { ...style.paint, "text-opacity": DETAIL_FADE },
+        },
+      })),
     ],
     addStyleHook: (map) => {
       if (map.hasImage("street_caret")) return;
