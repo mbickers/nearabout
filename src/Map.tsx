@@ -2,9 +2,11 @@ import type { LayerSpecification, Map as MapInstance, StyleSpecification } from 
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 
+export type PhysicalLayer = { z: number; style: LayerSpecification };
+
 export type MapStyleFragment = {
   sources: StyleSpecification["sources"];
-  physicalLayers: { z: number; style: LayerSpecification }[];
+  physicalLayers: PhysicalLayer[];
   addStyleHook?: (map: MapInstance) => void;
 };
 
