@@ -1,5 +1,6 @@
+import type { ComponentType } from "react";
 import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS, LayerSpecificControls } from "./layer_definitions";
+import { LAYER_DEFINITIONS } from "./layer_definitions";
 
 export const LayerControls = ({
   layers,
@@ -21,6 +22,14 @@ export const LayerControls = ({
     }}
   >
     {layers.map(([enabled, layer]) => {
+      const Controls = LAYER_DEFINITIONS[layer.kind].Controls as
+        | ComponentType<{
+            layer: Layer;
+            disabled: boolean;
+            onChange: (layer: Layer) => void;
+          }>
+        | undefined;
+
       return (
         <div key={layer.kind} style={{ display: "grid", gap: 4 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -40,18 +49,20 @@ export const LayerControls = ({
             {LAYER_DEFINITIONS[layer.kind].label}
           </label>
           <div style={{ marginLeft: 22 }}>
-            <LayerSpecificControls
-              layer={layer}
-              disabled={!enabled}
-              onChange={(changedLayer) =>
-                onChange(
-                  layers.map(([currentEnabled, currentLayer]): [boolean, Layer] => [
-                    currentEnabled,
-                    currentLayer.kind === changedLayer.kind ? changedLayer : currentLayer,
-                  ]),
-                )
-              }
-            />
+            {Controls ? (
+              <Controls
+                layer={layer}
+                disabled={!enabled}
+                onChange={(changedLayer) =>
+                  onChange(
+                    layers.map(([currentEnabled, currentLayer]): [boolean, Layer] => [
+                      currentEnabled,
+                      currentLayer.kind === changedLayer.kind ? changedLayer : currentLayer,
+                    ]),
+                  )
+                }
+              />
+            ) : null}
           </div>
         </div>
       );

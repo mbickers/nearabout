@@ -10,16 +10,14 @@ from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "public" / "data"
 
-SOCRATA_DATASET_IDS = {
-    "subway_entrances": "i9wp-a4ja",  # MTA Subway Entrances and Exits
-    "subway_stations": "vkng-7ivg",  # MTA Subway Station Envelopes
-}
-
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    for name, dataset_id in SOCRATA_DATASET_IDS.items():
+    for name, dataset_id in {
+        "subway_entrances": "i9wp-a4ja",  # MTA Subway Entrances and Exits
+        "subway_stations": "vkng-7ivg",  # MTA Subway Station Envelopes
+    }.items():
         url = f"https://data.ny.gov/resource/{dataset_id}.geojson?$limit=50000"  # Socrata pages at 1000 rows without an explicit limit
         print(f"Fetching {url}", flush=True)
         with urllib.request.urlopen(url, timeout=120) as response:
