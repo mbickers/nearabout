@@ -9,6 +9,7 @@ export const App = () => {
     [true, { kind: "geography", parksVisible: true }],
     [true, { kind: "streets" }],
     [true, { kind: "bike_lanes" }],
+    [true, { kind: "citibike_docks" }],
     [true, { kind: "subway", servicePeriod: "regular" }],
   ]);
   const styleFragments = useMemo(
