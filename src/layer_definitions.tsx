@@ -575,6 +575,24 @@ const drawBullet = ({ route, color, text_color }: SubwayBullet) => {
 };
 
 const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
+  const localStationMarkerImage = "subway-station-local";
+  const expressStationMarkerImage = "subway-station-express";
+  const drawStationMarker = ({ express }: { express: boolean }) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 20;
+    canvas.height = 20;
+    const context = canvas.getContext("2d")!;
+    context.beginPath();
+    context.arc(10, 10, express ? 7 : 7.5, 0, 2 * Math.PI);
+    context.fillStyle = express ? "#ffffff" : "#000000";
+    context.fill();
+    if (express) {
+      context.strokeStyle = "#000000";
+      context.lineWidth = 3;
+      context.stroke();
+    }
+    return context.getImageData(0, 0, canvas.width, canvas.height);
+  };
   const localStationMarkerPaint = {
     "circle-radius": 3.75,
     "circle-color": "#000000",
@@ -610,10 +628,19 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
 
       return {
         sources: {
-          subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
+          subway_routes_offset: {
+            type: "geojson",
+            data: "/data/subway_routes_offset.geojson",
+            // The default 0.375px tolerance is about 5.4m at zoom 13 in NYC, so it drops 5m segments.
+            tolerance: 0,
+          },
           subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
           subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
           subway_station_routes: { type: "geojson", data: "/data/subway_station_routes.geojson" },
+          subway_station_markers_offset: {
+            type: "geojson",
+            data: "/data/subway_station_markers_offset.geojson",
+          },
         },
         physicalLayers: [
           {
@@ -642,14 +669,15 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             style: {
               id: "subway_routes",
               type: "line",
-              source: "subway_routes",
+              source: "subway_routes_offset",
+              layout: { "line-cap": "square", "line-join": "round" },
               paint: {
                 "line-color": ["get", "color"],
                 "line-width": SUBWAY_WIDTH,
-                // the routes recede as the street detail fades in over the same zooms
-                "line-opacity": interpolateOnZoom([
-                  [DETAIL_FADE_IN, 1],
-                  [DETAIL_FADE_FULL, 0.7],
+                "line-offset": interpolateOnZoom([
+                  [11, ["*", ["get", "offset"], 2]],
+                  [14, ["*", ["get", "offset"], 5]],
+                  [16, ["*", ["get", "offset"], 8]],
                 ]),
               },
             },
@@ -658,30 +686,46 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             z: "feature",
             style: {
               id: "subway_stations_local_overview",
-              type: "circle",
-              source: "subway_station_routes",
+              type: "symbol",
+              source: "subway_station_markers_offset",
               maxzoom: stationDetailZoom,
               filter: [
                 "all",
                 ["has", `label_offset_${servicePeriod}`],
                 ["!=", ["get", `express_${servicePeriod}`], true],
               ],
-              paint: localStationMarkerPaint,
+              layout: {
+                "icon-image": localStationMarkerImage,
+                "icon-offset": interpolateOnZoom([
+                  [11, ["get", `marker_offset_${servicePeriod}_11`]],
+                  [14, ["get", `marker_offset_${servicePeriod}_14`]],
+                ]),
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+              },
             },
           },
           {
             z: "feature",
             style: {
               id: "subway_stations_express_overview",
-              type: "circle",
-              source: "subway_station_routes",
+              type: "symbol",
+              source: "subway_station_markers_offset",
               maxzoom: stationDetailZoom,
               filter: [
                 "all",
                 ["has", `label_offset_${servicePeriod}`],
                 ["==", ["get", `express_${servicePeriod}`], true],
               ],
-              paint: expressStationMarkerPaint,
+              layout: {
+                "icon-image": expressStationMarkerImage,
+                "icon-offset": interpolateOnZoom([
+                  [11, ["get", `marker_offset_${servicePeriod}_11`]],
+                  [14, ["get", `marker_offset_${servicePeriod}_14`]],
+                ]),
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+              },
             },
           },
           {
@@ -746,6 +790,15 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           },
         ],
         addStyleImages: async (map) => {
+          if (!map.hasImage(localStationMarkerImage))
+            map.addImage(localStationMarkerImage, drawStationMarker({ express: false }), {
+              pixelRatio: 2,
+            });
+          if (!map.hasImage(expressStationMarkerImage))
+            map.addImage(expressStationMarkerImage, drawStationMarker({ express: true }), {
+              pixelRatio: 2,
+            });
+
           const response = await fetch("/data/subway_bullets.json");
           const subwayBullets = (await response.json()) as SubwayBullet[];
           for (const bullet of subwayBullets) {
