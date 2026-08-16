@@ -199,7 +199,7 @@ const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   ),
 };
 
-const streetLayer = (id: string): PhysicalLayer => {
+const streetLayer = (id: string, filter: FilterSpecification): PhysicalLayer => {
   const layer = protomapsLayer<LineLayerSpecification>(id, "feature");
 
   return {
@@ -209,11 +209,7 @@ const streetLayer = (id: string): PhysicalLayer => {
       minzoom: DETAIL_FADE_IN,
       // only the surface minor layer excludes service in its own filter, so the bridge and
       // tunnel variants would otherwise render driveways and roadways inside a pier shed
-      filter: [
-        "all",
-        layer.style.filter,
-        ["!=", ["get", "kind_detail"], "service"],
-      ] as FilterSpecification,
+      filter: ["all", filter, ["!=", ["get", "kind_detail"], "service"]] as FilterSpecification,
       // the stock paint varies from white to grey by class and by tunnel
       paint: {
         "line-color": STREET_COLOR,
@@ -246,18 +242,60 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
     return {
       sources: PROTOMAPS_SOURCES,
       physicalLayers: [
-        streetLayer("roads_tunnels_minor"),
-        streetLayer("roads_tunnels_link"),
-        streetLayer("roads_tunnels_major"),
-        streetLayer("roads_tunnels_highway"),
-        streetLayer("roads_link"),
-        streetLayer("roads_minor"),
-        streetLayer("roads_major"),
-        streetLayer("roads_highway"),
-        streetLayer("roads_bridges_minor"),
-        streetLayer("roads_bridges_link"),
-        streetLayer("roads_bridges_major"),
-        streetLayer("roads_bridges_highway"),
+        streetLayer("roads_tunnels_minor", [
+          "all",
+          ["has", "is_tunnel"],
+          ["==", ["get", "kind"], "minor_road"],
+        ]),
+        streetLayer("roads_tunnels_link", ["all", ["has", "is_tunnel"], ["has", "is_link"]]),
+        streetLayer("roads_tunnels_major", [
+          "all",
+          ["has", "is_tunnel"],
+          ["==", ["get", "kind"], "major_road"],
+        ]),
+        streetLayer("roads_tunnels_highway", [
+          "all",
+          ["has", "is_tunnel"],
+          ["==", ["get", "kind"], "highway"],
+          ["!", ["has", "is_link"]],
+        ]),
+        streetLayer("roads_link", ["has", "is_link"]),
+        streetLayer("roads_minor", [
+          "all",
+          ["!", ["has", "is_tunnel"]],
+          ["!", ["has", "is_bridge"]],
+          ["==", ["get", "kind"], "minor_road"],
+        ]),
+        streetLayer("roads_major", [
+          "all",
+          ["!", ["has", "is_tunnel"]],
+          ["!", ["has", "is_bridge"]],
+          ["==", ["get", "kind"], "major_road"],
+        ]),
+        streetLayer("roads_highway", [
+          "all",
+          ["!", ["has", "is_tunnel"]],
+          ["!", ["has", "is_bridge"]],
+          ["==", ["get", "kind"], "highway"],
+          ["!", ["has", "is_link"]],
+        ]),
+        streetLayer("roads_bridges_minor", [
+          "all",
+          ["has", "is_bridge"],
+          ["==", ["get", "kind"], "minor_road"],
+        ]),
+        streetLayer("roads_bridges_link", ["all", ["has", "is_bridge"], ["has", "is_link"]]),
+        streetLayer("roads_bridges_major", [
+          "all",
+          ["has", "is_bridge"],
+          ["==", ["get", "kind"], "major_road"],
+        ]),
+        streetLayer("roads_bridges_highway", [
+          "all",
+          ["has", "is_bridge"],
+          ["==", ["get", "kind"], "highway"],
+          ["!", ["has", "is_link"]],
+        ]),
         {
           z: "feature",
           style: {
