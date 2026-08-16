@@ -6,7 +6,7 @@ import type {
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
 import type { Layer } from "../layer";
-import type { LayerZ, MapStyleFragment } from "../Map";
+import type { LayerZ, MapMarker, MapStyleFragment } from "../Map";
 
 const SOURCE_ID = "protomaps";
 export const DETAIL_FADE_IN = 14;
@@ -70,10 +70,11 @@ export type LayerKind = Layer["kind"];
 
 export type LayerOfKind<Kind extends LayerKind> = Extract<Layer, { kind: Kind }>;
 
-type LayerComponentProps<CurrentLayer extends Layer> = {
+export type LayerComponentProps<CurrentLayer extends Layer> = {
   layer: CurrentLayer;
   disabled: boolean;
   onChange: (layer: CurrentLayer) => void;
+  onMarkerPreviewChange: (markers?: MapMarker[]) => void;
 };
 
 export type LayerDefinition<CurrentLayer extends Layer> = {
