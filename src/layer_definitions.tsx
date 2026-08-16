@@ -109,6 +109,26 @@ type LayerDefinition<CurrentLayer extends Layer> = {
   Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
 };
 
+type CircleLegendPaint = CircleLayerSpecification["paint"] & {
+  "circle-radius": number;
+  "circle-color": string;
+  "circle-stroke-color"?: string;
+  "circle-stroke-width"?: number;
+};
+
+const circleLegend = (paint: CircleLegendPaint) => (
+  <svg width="14" height="14" aria-hidden="true">
+    <circle
+      cx="7"
+      cy="7"
+      r={paint["circle-radius"]}
+      fill={paint["circle-color"]}
+      stroke={paint["circle-stroke-color"]}
+      strokeWidth={paint["circle-stroke-width"]}
+    />
+  </svg>
+);
+
 const LegendRows = ({ items }: { items: { label: string; legend: ReactNode }[] }) => (
   <div style={{ display: "grid", gap: 3 }}>
     {items.map(({ label, legend }) => (
@@ -431,12 +451,11 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
 
 const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = (() => {
   const stationColor = "#0067b1";
-  const stationScale = 1.5;
-  const stationRadiusAtDetailZoom = 3.5 * stationScale;
+  const stationRadiusAtDetailZoom = 5.25;
   const stationMarkerPaint = {
     "circle-radius": interpolateOnZoom([
       [DETAIL_FADE_IN, stationRadiusAtDetailZoom],
-      [18, 7 * stationScale],
+      [18, 10.5],
     ]),
     "circle-color": stationColor,
     "circle-stroke-color": "#ffffff",
@@ -471,18 +490,10 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
         items={[
           {
             label: "Station",
-            legend: (
-              <svg width="14" height="14" aria-hidden="true">
-                <circle
-                  cx="7"
-                  cy="7"
-                  r={stationRadiusAtDetailZoom}
-                  fill={stationMarkerPaint["circle-color"]}
-                  stroke={stationMarkerPaint["circle-stroke-color"]}
-                  strokeWidth={stationMarkerPaint["circle-stroke-width"]}
-                />
-              </svg>
-            ),
+            legend: circleLegend({
+              ...stationMarkerPaint,
+              "circle-radius": stationRadiusAtDetailZoom,
+            }),
           },
         ]}
       />
@@ -532,34 +543,14 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
     "circle-radius": 3.75,
     "circle-color": "#000000",
   } satisfies CircleLayerSpecification["paint"];
-  const localStationMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={localStationMarkerPaint["circle-radius"]}
-        fill={localStationMarkerPaint["circle-color"]}
-      />
-    </svg>
-  );
+  const localStationMarkerLegend = circleLegend(localStationMarkerPaint);
   const expressStationMarkerPaint = {
     "circle-radius": 3.5,
     "circle-color": "#ffffff",
     "circle-stroke-color": "#000000",
     "circle-stroke-width": 1.5,
   } satisfies CircleLayerSpecification["paint"];
-  const expressStationMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={expressStationMarkerPaint["circle-radius"]}
-        fill={expressStationMarkerPaint["circle-color"]}
-        stroke={expressStationMarkerPaint["circle-stroke-color"]}
-        strokeWidth={expressStationMarkerPaint["circle-stroke-width"]}
-      />
-    </svg>
-  );
+  const expressStationMarkerLegend = circleLegend(expressStationMarkerPaint);
   const entranceRadiusAtDetailZoom = 3.5;
   const entranceStrokeWidthAtDetailZoom = 1;
   const entranceMarkerPaint = {
@@ -576,18 +567,11 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
     "circle-opacity": DETAIL_FADE,
     "circle-stroke-opacity": DETAIL_FADE,
   } satisfies CircleLayerSpecification["paint"];
-  const entranceMarkerLegend = (
-    <svg width="14" height="14" aria-hidden="true">
-      <circle
-        cx="7"
-        cy="7"
-        r={entranceRadiusAtDetailZoom}
-        fill={entranceMarkerPaint["circle-color"]}
-        stroke={entranceMarkerPaint["circle-stroke-color"]}
-        strokeWidth={entranceStrokeWidthAtDetailZoom}
-      />
-    </svg>
-  );
+  const entranceMarkerLegend = circleLegend({
+    ...entranceMarkerPaint,
+    "circle-radius": entranceRadiusAtDetailZoom,
+    "circle-stroke-width": entranceStrokeWidthAtDetailZoom,
+  });
 
   return {
     label: "Subway",
