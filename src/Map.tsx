@@ -9,7 +9,7 @@ export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 export type MapStyleFragment = {
   sources: StyleSpecification["sources"];
   physicalLayers: PhysicalLayer[];
-  addStyleHook?: (map: MapInstance) => void;
+  addStyleImages?: (map: MapInstance) => void | Promise<void>;
 };
 
 export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) => {
@@ -43,15 +43,17 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
         touchPitch={false}
         maxPitch={0}
         onMove={({ viewState }) => setZoom(viewState.zoom)}
+        onStyleData={({ target }) => {
+          target.setMissingStyleImageResolver(async () => {
+            for (const { addStyleImages } of styleFragmentsRef.current) {
+              await addStyleImages?.(target);
+            }
+          });
+        }}
         onLoad={({ target }) => {
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
-
-          for (const { addStyleHook } of styleFragmentsRef.current) addStyleHook?.(target);
-          target.on("style.load", () => {
-            for (const { addStyleHook } of styleFragmentsRef.current) addStyleHook?.(target);
-          });
         }}
       />
       <div
