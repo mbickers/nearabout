@@ -209,7 +209,11 @@ const streetLayer = (id: string): PhysicalLayer => {
       minzoom: DETAIL_FADE_IN,
       // only the surface minor layer excludes service in its own filter, so the bridge and
       // tunnel variants would otherwise render driveways and roadways inside a pier shed
-      filter: ["all", layer.style.filter, ["!=", "kind_detail", "service"]] as FilterSpecification,
+      filter: [
+        "all",
+        layer.style.filter,
+        ["!=", ["get", "kind_detail"], "service"],
+      ] as FilterSpecification,
       // the stock paint varies from white to grey by class and by tunnel
       paint: {
         "line-color": STREET_COLOR,
@@ -288,14 +292,14 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
             // the minor filter also matches path and service-road labels, which have no line beneath
             filter: [
               "all",
-              ["==", "kind", "minor_road"],
-              ["!=", "kind_detail", "service"],
+              ["==", ["get", "kind"], "minor_road"],
+              ["!=", ["get", "kind_detail"], "service"],
             ] as FilterSpecification,
           },
         },
         streetLabelLayer("roads_labels_major"),
       ],
-      addStyleHook: (map) => {
+      addStyleImages: (map) => {
         if (map.hasImage("street_caret")) return;
         map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
           pixelRatio: CARET_RESOLUTION,
@@ -424,7 +428,7 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
             },
           },
         ],
-        addStyleHook: (map) => {
+        addStyleImages: (map) => {
           if (!map.hasImage("bike_caret")) {
             map.addImage("bike_caret", drawCaret({ color: bikeColor }), {
               pixelRatio: CARET_RESOLUTION,
@@ -703,7 +707,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
         ],
-        addStyleHook: async (map) => {
+        addStyleImages: async (map) => {
           const response = await fetch("/data/subway_bullets.json");
           const subwayBullets = (await response.json()) as SubwayBullet[];
           for (const bullet of subwayBullets) {
