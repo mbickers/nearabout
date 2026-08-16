@@ -358,7 +358,12 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
               type: "line",
               source: "bike_routes",
               minzoom: DETAIL_FADE_IN,
-              filter: ["!=", ["get", "facilitycl"], "I"],
+              filter: [
+                "all",
+                ["!=", ["get", "facilitycl"], "I"],
+                // Class III is shared lanes
+                ["!=", ["get", "facilitycl"], "III"],
+              ],
               paint: unprotectedBikeLanePaint,
             },
           },
@@ -412,12 +417,15 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
       };
     },
     Controls: () => (
-      <LegendRows
-        items={[
-          { label: "Protected", legend: protectedBikeLaneLegend },
-          { label: "Unprotected", legend: unprotectedBikeLaneLegend },
-        ]}
-      />
+      <div style={{ display: "grid", gap: 3 }}>
+        <LegendRows
+          items={[
+            { label: "Protected", legend: protectedBikeLaneLegend },
+            { label: "Unprotected", legend: unprotectedBikeLaneLegend },
+          ]}
+        />
+        <div>Shared lanes (sharrows) not shown because they are bad.</div>
+      </div>
     ),
   };
 })();
