@@ -9,12 +9,11 @@ import json
 import urllib.request
 from pathlib import Path
 
-OUTPUT_PATH = (
-    Path(__file__).resolve().parent.parent / "public" / "data" / "citibike_stations.geojson"
-)
-
 
 def main():
+    output_path = (
+        Path(__file__).resolve().parent.parent / "public" / "data" / "citibike_stations.geojson"
+    )
     discovery_url = "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json"
     print(f"Fetching {discovery_url}", flush=True)
     with urllib.request.urlopen(discovery_url, timeout=120) as response:
@@ -43,8 +42,8 @@ def main():
         for station in sorted(stations, key=lambda station: station["station_id"])
     ]
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
 
 if __name__ == "__main__":

@@ -14,15 +14,6 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "public" / "data"
-
-# icon-offset units, which maplibre scales by icon-size, so bullets stay adjacent at every zoom
-BULLET_SPACING = 24
-
-BULLET_ROW_LIMIT = 5
-
-SERVICE_PERIODS = ("regular", "late_night", "weekend")
-
 
 def symbol_key(symbol):
     """Sort key ordering letters before numbers, so the A C E group precedes the 1 2 3 group."""
@@ -43,6 +34,8 @@ def periods_for(*, weekday_service, hour):
 
 
 def main():
+    output_dir = Path(__file__).resolve().parent.parent / "public" / "data"
+    service_periods = ("regular", "late_night", "weekend")
     url = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
     print(f"Fetching {url}", flush=True)
     with urllib.request.urlopen(url, timeout=300) as response:
@@ -101,8 +94,8 @@ def main():
             }
         station_of[s["stop_id"]] = s["parent_station"] or s["stop_id"]
 
-    served = {period: {} for period in SERVICE_PERIODS}
-    route_trips = {period: collections.defaultdict(set) for period in SERVICE_PERIODS}
+    served = {period: {} for period in service_periods}
+    route_trips = {period: collections.defaultdict(set) for period in service_periods}
     for stop_time in read_csv(archive, "stop_times"):
         route_id, weekday_service = trips[stop_time["trip_id"]]
         station_id = station_of[stop_time["stop_id"]]
@@ -129,22 +122,25 @@ def main():
     def bullet_offsets(route_ids):
         """Map each route_id to its icon offset.
 
-        A complex wider than BULLET_ROW_LIMIT wraps onto further rows, which are broken between
+        A complex wider than five bullets wraps onto further rows, which are broken between
         colour groups so that no group is split across two rows.
         """
+        # icon-offset units, which maplibre scales by icon-size
+        bullet_spacing = 24
+        bullet_row_limit = 5
         rows = [[]]
-        if len(route_ids) > BULLET_ROW_LIMIT:
+        if len(route_ids) > bullet_row_limit:
             for _, group in itertools.groupby(route_ids, key=lambda r: routes[r]["color"]):
                 group = list(group)
-                if rows[-1] and len(rows[-1]) + len(group) > BULLET_ROW_LIMIT:
+                if rows[-1] and len(rows[-1]) + len(group) > bullet_row_limit:
                     rows.append([])
                 rows[-1].extend(group)
         else:
             rows = [list(route_ids)]
         return {
             route_id: [
-                (column + 0.5) * BULLET_SPACING,
-                (index - (len(rows) - 1) / 2) * BULLET_SPACING,
+                (column + 0.5) * bullet_spacing,
+                (index - (len(rows) - 1) / 2) * bullet_spacing,
             ]
             for index, row in enumerate(rows)
             for column, route_id in enumerate(row)
@@ -155,7 +151,7 @@ def main():
         lon = sum(station["lon"] for _, station in members) / len(members)
         lat = sum(station["lat"] for _, station in members) / len(members)
         here = {}
-        for period in SERVICE_PERIODS:
+        for period in service_periods:
             stops = collections.Counter()
             for station_id, _ in members:
                 stops.update(served[period].get(station_id, {}))
@@ -169,20 +165,20 @@ def main():
                 }
             )
         offsets = {
-            period: bullet_offsets(ordered_bullets(here[period])) for period in SERVICE_PERIODS
+            period: bullet_offsets(ordered_bullets(here[period])) for period in service_periods
         }
         for position, route_id in enumerate(ordered_bullets(set().union(*here.values()))):
             properties = {
                 "station_name": name,
                 **routes[route_id],
             }
-            for period in SERVICE_PERIODS:
+            for period in service_periods:
                 if route_id in offsets[period]:
                     properties[f"offset_{period}"] = offsets[period][route_id]
             # the label goes on one bullet per station, offset clear of every row it wraps onto
             if position == 0:
                 properties["label"] = name
-                for period in SERVICE_PERIODS:
+                for period in service_periods:
                     if offsets[period]:
                         rows = len({y for _, y in offsets[period].values()})
                         properties[f"label_offset_{period}"] = [0, -((rows - 1) * 0.53 + 0.41)]
@@ -195,13 +191,13 @@ def main():
                 }
             )
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    geojson_path = OUTPUT_DIR / "subway_station_routes.geojson"
+    geojson_path = output_dir / "subway_station_routes.geojson"
     geojson_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
     # the frontend draws one bullet image per route, so it needs the routes without parsing the geojson
-    bullets_path = OUTPUT_DIR / "subway_bullets.json"
+    bullets_path = output_dir / "subway_bullets.json"
     bullets_path.write_text(json.dumps(sorted(routes.values(), key=lambda bullet: bullet["route"])))
 
 
