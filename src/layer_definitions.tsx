@@ -28,12 +28,6 @@ const DETAIL_FADE = interpolateOnZoom([
   [DETAIL_FADE_FULL, 1],
 ]);
 
-const DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM = 3.5;
-const DETAIL_MARKER_RADIUS = interpolateOnZoom([
-  [DETAIL_FADE_IN, DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM],
-  [18, 7],
-]);
-
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [DETAIL_FADE_IN, 1.9],
   [16, 2.5],
@@ -438,9 +432,10 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
 const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = (() => {
   const stationColor = "#0067b1";
   const stationScale = 1.5;
+  const stationRadiusAtDetailZoom = 3.5 * stationScale;
   const stationMarkerPaint = {
     "circle-radius": interpolateOnZoom([
-      [DETAIL_FADE_IN, DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM * stationScale],
+      [DETAIL_FADE_IN, stationRadiusAtDetailZoom],
       [18, 7 * stationScale],
     ]),
     "circle-color": stationColor,
@@ -481,7 +476,7 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
                 <circle
                   cx="7"
                   cy="7"
-                  r={DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM * stationScale}
+                  r={stationRadiusAtDetailZoom}
                   fill={stationMarkerPaint["circle-color"]}
                   stroke={stationMarkerPaint["circle-stroke-color"]}
                   strokeWidth={stationMarkerPaint["circle-stroke-width"]}
@@ -565,9 +560,13 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
       />
     </svg>
   );
+  const entranceRadiusAtDetailZoom = 3.5;
   const entranceStrokeWidthAtDetailZoom = 1;
   const entranceMarkerPaint = {
-    "circle-radius": DETAIL_MARKER_RADIUS,
+    "circle-radius": interpolateOnZoom([
+      [DETAIL_FADE_IN, entranceRadiusAtDetailZoom],
+      [18, 7],
+    ]),
     "circle-color": "#888888",
     "circle-stroke-color": "#222222",
     "circle-stroke-width": interpolateOnZoom([
@@ -582,7 +581,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
       <circle
         cx="7"
         cy="7"
-        r={DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM}
+        r={entranceRadiusAtDetailZoom}
         fill={entranceMarkerPaint["circle-color"]}
         stroke={entranceMarkerPaint["circle-stroke-color"]}
         strokeWidth={entranceStrokeWidthAtDetailZoom}
