@@ -2,8 +2,6 @@ import type { LayerSpecification, Map as MapInstance, StyleSpecification } from 
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 
-const INITIAL_ZOOM = 11;
-
 export type MapStyleFragment = {
   sources: StyleSpecification["sources"];
   physicalLayers: { z: number; style: LayerSpecification }[];
@@ -11,7 +9,8 @@ export type MapStyleFragment = {
 };
 
 export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) => {
-  const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const initialZoom = 11;
+  const [zoom, setZoom] = useState(initialZoom);
   const styleFragmentsRef = useRef(styleFragments);
   styleFragmentsRef.current = styleFragments;
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
@@ -32,7 +31,7 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
   return (
     <>
       <MapLibreMap
-        initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: INITIAL_ZOOM }}
+        initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: initialZoom }}
         mapStyle={mapStyle}
         style={{ position: "fixed", inset: 0 }}
         dragRotate={false}

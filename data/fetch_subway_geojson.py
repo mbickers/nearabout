@@ -8,11 +8,10 @@
 import urllib.request
 from pathlib import Path
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "public" / "data"
-
 
 def main():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(__file__).resolve().parent.parent / "public" / "data"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     for name, dataset_id in {
         "subway_entrances": "i9wp-a4ja",  # MTA Subway Entrances and Exits
@@ -23,7 +22,7 @@ def main():
         with urllib.request.urlopen(url, timeout=120) as response:
             body = response.read()
 
-        output_path = OUTPUT_DIR / f"{name}.geojson"
+        output_path = output_dir / f"{name}.geojson"
         output_path.write_bytes(body)
 
 

@@ -11,10 +11,6 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-NYC_BBOX = "-74.30,40.47,-73.68,40.93"
-
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "tiles" / "nyc.pmtiles"
-
 
 def latest_build_key():
     request = urllib.request.Request(
@@ -27,6 +23,8 @@ def latest_build_key():
 
 
 def main():
+    nyc_bbox = "-74.30,40.47,-73.68,40.93"
+    output_path = Path(__file__).resolve().parent.parent / "public" / "tiles" / "nyc.pmtiles"
     parser = argparse.ArgumentParser(
         description="Extract a NYC-clipped Protomaps basemap to public/tiles/nyc.pmtiles."
     )
@@ -43,16 +41,16 @@ def main():
     key = f"{args.build}.pmtiles" if args.build else latest_build_key()
     source_url = f"https://build.protomaps.com/{key}"
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    staging_path = OUTPUT_PATH.with_suffix(".partial")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    staging_path = output_path.with_suffix(".partial")
 
-    command = ["pmtiles", "extract", source_url, str(staging_path), f"--bbox={NYC_BBOX}"]
+    command = ["pmtiles", "extract", source_url, str(staging_path), f"--bbox={nyc_bbox}"]
     if args.maxzoom is not None:
         command.append(f"--maxzoom={args.maxzoom}")
 
-    print(f"Extracting bbox {NYC_BBOX} from {source_url}", flush=True)
+    print(f"Extracting bbox {nyc_bbox} from {source_url}", flush=True)
     subprocess.run(command, check=True)
-    staging_path.replace(OUTPUT_PATH)  # only after success, so a failed run keeps the old basemap
+    staging_path.replace(output_path)  # only after success, so a failed run keeps the old basemap
 
 
 if __name__ == "__main__":

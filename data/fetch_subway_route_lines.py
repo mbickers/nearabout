@@ -15,8 +15,6 @@ from pathlib import Path
 import shapely
 import shapely.geometry
 
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "subway_routes.geojson"
-
 
 def read_csv(archive, name):
     with archive.open(f"{name}.txt") as raw:
@@ -43,6 +41,9 @@ def dissolve_by_color(shapes_by_color):
 
 
 def main():
+    output_path = (
+        Path(__file__).resolve().parent.parent / "public" / "data" / "subway_routes.geojson"
+    )
     # Use trip geometry for tracks (rather than MTA service lines, which go beyond terminals on some lines)
     url = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
     print(f"Fetching {url}", flush=True)
@@ -82,8 +83,8 @@ def main():
 
     features = dissolve_by_color(shapes_by_color)
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
 
 if __name__ == "__main__":
