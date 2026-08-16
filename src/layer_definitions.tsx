@@ -525,7 +525,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
               type: "fill-extrusion",
               source: "subway_stations",
               minzoom: DETAIL_FADE_IN,
-              // substring, so shared complexes like "NYCT/PATH" stay while PATH/LIRR/Metro-North-only go
+              // use a substring check to include shared complexes such as NYCT/PATH
               filter: ["in", "NYCT", ["get", "agency"]],
               paint: {
                 "fill-extrusion-color": "#808080",
