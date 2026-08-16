@@ -24,9 +24,9 @@ def latest_build_key():
 
 def main():
     nyc_bbox = "-74.30,40.47,-73.68,40.93"
-    output_path = Path(__file__).resolve().parent.parent / "public" / "tiles" / "nyc.pmtiles"
+    output_path = Path(__file__).resolve().parent.parent / "public" / "data" / "nyc.pmtiles"
     parser = argparse.ArgumentParser(
-        description="Extract a NYC-clipped Protomaps basemap to public/tiles/nyc.pmtiles."
+        description="Extract a NYC-clipped Protomaps basemap to public/data/nyc.pmtiles."
     )
     parser.add_argument(
         "--build", help="daily build to extract, e.g. 20260814 (default: the latest)"

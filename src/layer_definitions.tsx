@@ -9,7 +9,6 @@ import type {
   SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
-import subwayBullets from "../public/data/subway_bullets.json";
 import type { Layer, ServicePeriod } from "./layer";
 import { SERVICE_PERIODS } from "./layer";
 import type { LayerZ, MapStyleFragment, PhysicalLayer } from "./Map";
@@ -27,6 +26,12 @@ const interpolateOnZoom = (stops: [zoom: number, value: number | ExpressionSpeci
 const DETAIL_FADE = interpolateOnZoom([
   [DETAIL_FADE_IN, 0],
   [DETAIL_FADE_FULL, 1],
+]);
+
+const DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM = 3.5;
+const DETAIL_MARKER_RADIUS = interpolateOnZoom([
+  [DETAIL_FADE_IN, DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM],
+  [18, 7],
 ]);
 
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
@@ -88,7 +93,7 @@ const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
 const PROTOMAPS_SOURCES: MapStyleFragment["sources"] = {
   [SOURCE_ID]: {
     type: "vector",
-    url: "pmtiles:///tiles/nyc.pmtiles",
+    url: "pmtiles:///data/nyc.pmtiles",
     attribution:
       '<a href="https://github.com/protomaps/basemaps">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   },
@@ -430,16 +435,71 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
   };
 })();
 
+const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = (() => {
+  const stationColor = "#0067b1";
+  const stationScale = 1.5;
+  const stationMarkerPaint = {
+    "circle-radius": ["*", DETAIL_MARKER_RADIUS, stationScale] as ExpressionSpecification,
+    "circle-color": stationColor,
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 0.75,
+  } satisfies CircleLayerSpecification["paint"];
+
+  return {
+    label: "Citi Bike docks",
+    mapStyleFragment: () => ({
+      sources: {
+        citibike_stations: {
+          type: "geojson",
+          data: "/data/citibike_stations.geojson",
+          attribution: '<a href="https://citibikenyc.com/system-data">Citi Bike</a>',
+        },
+      },
+      physicalLayers: [
+        {
+          z: "feature",
+          style: {
+            id: "citibike_stations",
+            type: "circle",
+            source: "citibike_stations",
+            minzoom: DETAIL_FADE_IN,
+            paint: stationMarkerPaint,
+          },
+        },
+      ],
+    }),
+    Controls: () => (
+      <LegendRows
+        items={[
+          {
+            label: "Station",
+            legend: (
+              <svg width="14" height="14" aria-hidden="true">
+                <circle
+                  cx="7"
+                  cy="7"
+                  r={DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM * stationScale}
+                  fill={stationMarkerPaint["circle-color"]}
+                  stroke={stationMarkerPaint["circle-stroke-color"]}
+                  strokeWidth={stationMarkerPaint["circle-stroke-width"]}
+                />
+              </svg>
+            ),
+          },
+        ]}
+      />
+    ),
+  };
+})();
+
 // express routes are diamonds on the official map, everything else is a disc
-const drawBullet = ({
-  route,
-  color,
-  text_color,
-}: {
+type SubwayBullet = {
   route: string;
   color: string;
   text_color: string;
-}) => {
+};
+
+const drawBullet = ({ route, color, text_color }: SubwayBullet) => {
   const bulletPixels = 44;
   const canvas = document.createElement("canvas");
   canvas.width = bulletPixels;
@@ -502,13 +562,9 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
       />
     </svg>
   );
-  const entranceRadiusAtDetailZoom = 3.5;
   const entranceStrokeWidthAtDetailZoom = 1;
   const entranceMarkerPaint = {
-    "circle-radius": interpolateOnZoom([
-      [14, entranceRadiusAtDetailZoom],
-      [18, 7],
-    ]),
+    "circle-radius": DETAIL_MARKER_RADIUS,
     "circle-color": "#888888",
     "circle-stroke-color": "#222222",
     "circle-stroke-width": interpolateOnZoom([
@@ -523,7 +579,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
       <circle
         cx="7"
         cy="7"
-        r={entranceRadiusAtDetailZoom}
+        r={DETAIL_MARKER_RADIUS_AT_DETAIL_ZOOM}
         fill={entranceMarkerPaint["circle-color"]}
         stroke={entranceMarkerPaint["circle-stroke-color"]}
         strokeWidth={entranceStrokeWidthAtDetailZoom}
@@ -673,7 +729,9 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             },
           },
         ],
-        addStyleHook: (map) => {
+        addStyleHook: async (map) => {
+          const response = await fetch("/data/subway_bullets.json");
+          const subwayBullets = (await response.json()) as SubwayBullet[];
           for (const bullet of subwayBullets) {
             if (!map.hasImage(bullet.route))
               map.addImage(bullet.route, drawBullet(bullet), { pixelRatio: 2 });
@@ -719,5 +777,6 @@ export const LAYER_DEFINITIONS: {
   geography: geographyDefinition,
   streets: streetsDefinition,
   bike_lanes: bikeLanesDefinition,
+  citibike_docks: citibikeDocksDefinition,
   subway: subwayDefinition,
 };
