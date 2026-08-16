@@ -12,34 +12,34 @@ from pathlib import Path
 
 def main():
     output_path = (
-        Path(__file__).resolve().parent.parent / "public" / "data" / "citibike_stations.geojson"
+        Path(__file__).resolve().parent.parent / "public" / "data" / "citibike_docks.geojson"
     )
     discovery_url = "https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json"
     print(f"Fetching {discovery_url}", flush=True)
     with urllib.request.urlopen(discovery_url, timeout=120) as response:
         feeds = json.load(response)["data"]["en"]["feeds"]
 
-    station_information_url = next(
+    dock_information_url = next(
         feed["url"] for feed in feeds if feed["name"] == "station_information"
     )
-    print(f"Fetching {station_information_url}", flush=True)
-    with urllib.request.urlopen(station_information_url, timeout=120) as response:
-        stations = json.load(response)["data"]["stations"]
+    print(f"Fetching {dock_information_url}", flush=True)
+    with urllib.request.urlopen(dock_information_url, timeout=120) as response:
+        docks = json.load(response)["data"]["stations"]
 
     features = [
         {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                "coordinates": [station["lon"], station["lat"]],
+                "coordinates": [dock["lon"], dock["lat"]],
             },
             "properties": {
-                "station_id": station["station_id"],
-                "name": station["name"],
-                "capacity": station["capacity"],
+                "station_id": dock["station_id"],
+                "name": dock["name"],
+                "capacity": dock["capacity"],
             },
         }
-        for station in sorted(stations, key=lambda station: station["station_id"])
+        for dock in sorted(docks, key=lambda dock: dock["station_id"])
     ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

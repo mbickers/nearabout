@@ -483,20 +483,20 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
             { label: "Unprotected", legend: unprotectedBikeLaneLegend },
           ]}
         />
-        <div>Shared lanes (sharrows) not shown.</div>
+        <div>Shared lanes not shown.</div>
       </div>
     ),
   };
 })();
 
 const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = (() => {
-  const stationColor = "#0067b1";
-  const stationMarkerPaint = {
+  const dockColor = "#0067b1";
+  const dockMarkerPaint = {
     "circle-radius": interpolateOnZoom([
       [DETAIL_FADE_IN, 5.25],
       [18, 10.5],
     ]),
-    "circle-color": stationColor,
+    "circle-color": dockColor,
     "circle-stroke-color": "#ffffff",
     "circle-stroke-width": 0.75,
   } satisfies CircleLayerSpecification["paint"];
@@ -505,9 +505,9 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
     label: "Citi Bike docks",
     mapStyleFragment: () => ({
       sources: {
-        citibike_stations: {
+        citibike_docks: {
           type: "geojson",
-          data: "/data/citibike_stations.geojson",
+          data: "/data/citibike_docks.geojson",
           attribution: '<a href="https://citibikenyc.com/system-data">Citi Bike</a>',
         },
       },
@@ -515,11 +515,11 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
         {
           z: "feature",
           style: {
-            id: "citibike_stations",
+            id: "citibike_docks",
             type: "circle",
-            source: "citibike_stations",
+            source: "citibike_docks",
             minzoom: DETAIL_FADE_IN,
-            paint: stationMarkerPaint,
+            paint: dockMarkerPaint,
           },
         },
       ],
@@ -528,8 +528,8 @@ const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = 
       <LegendRows
         items={[
           {
-            label: "Station",
-            legend: circleLegend(stationMarkerPaint),
+            label: "Dock",
+            legend: circleLegend(dockMarkerPaint),
           },
         ]}
       />
