@@ -424,7 +424,7 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
             { label: "Unprotected", legend: unprotectedBikeLaneLegend },
           ]}
         />
-        <div>Shared lanes (sharrows) not shown because they are bad.</div>
+        <div>Shared lanes (sharrows) not shown.</div>
       </div>
     ),
   };
