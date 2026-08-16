@@ -1,13 +1,16 @@
 import type { ComponentType } from "react";
 import type { Layer } from "./layer";
 import { LAYER_DEFINITIONS } from "./layer_definitions";
+import type { MapMarker } from "./Map";
 
 export const LayerControls = ({
   layers,
   onChange,
+  onMarkerPreviewChange,
 }: {
   layers: [enabled: boolean, layer: Layer][];
   onChange: (layers: [enabled: boolean, layer: Layer][]) => void;
+  onMarkerPreviewChange: (markers?: MapMarker[]) => void;
 }) => (
   <div
     style={{
@@ -19,6 +22,8 @@ export const LayerControls = ({
       padding: 8,
       background: "#ffffff",
       font: "12px ui-monospace, monospace",
+      maxHeight: "calc(100vh - 36px)",
+      overflowY: "auto",
     }}
   >
     {layers.map(([enabled, layer]) => {
@@ -28,6 +33,7 @@ export const LayerControls = ({
             layer: Layer;
             disabled: boolean;
             onChange: (layer: Layer) => void;
+            onMarkerPreviewChange: (markers?: MapMarker[]) => void;
           }>
         | undefined;
 
@@ -54,6 +60,7 @@ export const LayerControls = ({
               <Controls
                 layer={layer}
                 disabled={!enabled}
+                onMarkerPreviewChange={onMarkerPreviewChange}
                 onChange={(changedLayer) =>
                   onChange(
                     layers.map(([currentEnabled, currentLayer]): [boolean, Layer] => [

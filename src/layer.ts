@@ -2,9 +2,18 @@ export const SERVICE_PERIODS = ["regular", "late_night", "weekend"] as const;
 
 export type ServicePeriod = (typeof SERVICE_PERIODS)[number];
 
+export type PointOfInterest = {
+  id: string;
+  label: string;
+  address: string;
+  longitude: number;
+  latitude: number;
+};
+
 export type Layer =
   | { kind: "geography"; parksVisible: boolean }
   | { kind: "streets" }
   | { kind: "bike_lanes" }
   | { kind: "citibike_docks" }
-  | { kind: "subway"; servicePeriod: ServicePeriod };
+  | { kind: "subway"; servicePeriod: ServicePeriod }
+  | { kind: "points_of_interest"; items: PointOfInterest[] };
