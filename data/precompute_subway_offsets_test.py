@@ -1,15 +1,10 @@
-#!/usr/bin/env -S uv run --script
-
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["shapely"]
-# ///
+#!/usr/bin/env -S uv run
 
 import math
 import unittest
 from itertools import pairwise
 
-from precompute_subway_offsets import (
+from data.precompute_subway_offsets import (
     derive_station_marker_offsets,
     derive_subway_offsets,
 )

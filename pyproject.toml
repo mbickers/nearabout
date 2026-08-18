@@ -1,0 +1,31 @@
+[project]
+name = "nearabout-data"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "shapely>=2.1.1",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+    "ty>=0.0.64",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ty.environment]
+python-version = "3.11"
+root = ["."]
+
+[tool.setuptools.packages.find]
+include = ["data"]

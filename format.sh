@@ -41,9 +41,9 @@ status=0
 
 if [ -n "$py_files" ]; then
     # shellcheck disable=SC2086
-    uvx ruff format --line-length=100 -- $py_files || status=1
+    uv run ruff format -- $py_files || status=1
     # shellcheck disable=SC2086
-    uvx ruff check --fix -- $py_files || status=1
+    uv run ruff check --fix -- $py_files || status=1
 fi
 
 if [ -n "$web_files" ]; then
