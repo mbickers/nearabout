@@ -1,9 +1,4 @@
-#!/usr/bin/env -S uv run --script
-
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env -S uv run
 
 import urllib.request
 from pathlib import Path
@@ -17,7 +12,8 @@ def main():
         "subway_entrances": "i9wp-a4ja",  # MTA Subway Entrances and Exits
         "subway_stations": "vkng-7ivg",  # MTA Subway Station Envelopes
     }.items():
-        url = f"https://data.ny.gov/resource/{dataset_id}.geojson?$limit=50000"  # Socrata pages at 1000 rows without an explicit limit
+        # Socrata pages at 1000 rows without an explicit limit.
+        url = f"https://data.ny.gov/resource/{dataset_id}.geojson?$limit=50000"
         print(f"Fetching {url}", flush=True)
         with urllib.request.urlopen(url, timeout=120) as response:
             body = response.read()

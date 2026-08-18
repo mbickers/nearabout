@@ -6,4 +6,5 @@ worktree_root=$(git rev-parse --show-toplevel)
 if [ "$worktree_root" != "$primary_checkout" ]; then
     cp -cRn "$primary_checkout/public/data" public/
 fi
+uv sync
 npm install

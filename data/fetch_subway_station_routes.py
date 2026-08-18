@@ -1,9 +1,4 @@
-#!/usr/bin/env -S uv run --script
-
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env -S uv run
 
 import collections
 import csv
@@ -196,7 +191,7 @@ def main():
     geojson_path = output_dir / "subway_station_routes.geojson"
     geojson_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
-    # the frontend draws one bullet image per route, so it needs the routes without parsing the geojson
+    # The frontend needs routes separately because it draws one bullet image per route.
     bullets_path = output_dir / "subway_bullets.json"
     bullets_path.write_text(json.dumps(sorted(routes.values(), key=lambda bullet: bullet["route"])))
 

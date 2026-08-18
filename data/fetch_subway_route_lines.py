@@ -1,9 +1,4 @@
-#!/usr/bin/env -S uv run --script
-
-# /// script
-# requires-python = ">=3.11"
-# dependencies = []
-# ///
+#!/usr/bin/env -S uv run
 
 import csv
 import io
@@ -22,7 +17,7 @@ def main():
     output_path = (
         Path(__file__).resolve().parent.parent / "public" / "data" / "subway_routes.geojson"
     )
-    # Use trip geometry for tracks (rather than MTA service lines, which go beyond terminals on some lines)
+    # Use trip geometry because MTA service lines go beyond terminals on some lines.
     url = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
     print(f"Fetching {url}", flush=True)
     with urllib.request.urlopen(url, timeout=300) as response:

@@ -1,15 +1,11 @@
-#!/usr/bin/env -S uv run --script
-
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["shapely"]
-# ///
+#!/usr/bin/env -S uv run
 
 import json
 import math
 import statistics
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 import shapely
 import shapely.geometry
@@ -394,7 +390,7 @@ def derive_subway_offsets(
             segment["offset"] = round(offset, 6)
             distance += segment["length"]
 
-    features = []
+    features: list[dict[str, Any]] = []
     for segment in subway_segments:
         if (
             features

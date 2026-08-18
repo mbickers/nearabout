@@ -1,0 +1,76 @@
+[tools]
+watchexec = "latest"
+
+[settings]
+# Detect stale task outputs by hashing source contents, so an mtime-only change
+# (a git checkout, a formatter touching a file) does not trigger a rebuild.
+task.source_freshness_hash_contents = true
+
+[tasks.bootstrap]
+run = "./data/bootstrap_worktree.sh"
+
+[tasks."data:basemap"]
+run = "uv run python -m data.fetch_basemap"
+sources = ["data/fetch_basemap.py"]
+outputs = ["public/data/nyc.pmtiles"]
+
+[tasks."data:bike_routes"]
+run = "uv run python -m data.fetch_bike_routes"
+sources = ["data/fetch_bike_routes.py"]
+outputs = ["public/data/bike_routes.geojson"]
+
+[tasks."data:citibike_docks"]
+run = "uv run python -m data.fetch_citibike_docks"
+sources = ["data/fetch_citibike_docks.py"]
+outputs = ["public/data/citibike_docks.geojson"]
+
+[tasks."data:subway_geojson"]
+run = "uv run python -m data.fetch_subway_geojson"
+sources = ["data/fetch_subway_geojson.py"]
+outputs = [
+    "public/data/subway_entrances.geojson",
+    "public/data/subway_stations.geojson",
+]
+
+[tasks."data:subway_routes"]
+run = "uv run python -m data.fetch_subway_route_lines"
+sources = ["data/fetch_subway_route_lines.py"]
+outputs = ["public/data/subway_routes.geojson"]
+
+[tasks."data:subway_stations"]
+run = "uv run python -m data.fetch_subway_station_routes"
+sources = ["data/fetch_subway_station_routes.py"]
+outputs = [
+    "public/data/subway_station_routes.geojson",
+    "public/data/subway_bullets.json",
+]
+
+[tasks."data:subway_offsets"]
+run = "uv run python -m data.precompute_subway_offsets"
+depends = ["data:bike_routes", "data:subway_routes", "data:subway_stations"]
+sources = [
+    "data/precompute_subway_offsets.py",
+    "public/data/bike_routes.geojson",
+    "public/data/subway_routes.geojson",
+    "public/data/subway_station_routes.geojson",
+]
+outputs = [
+    "public/data/subway_routes_offset.geojson",
+    "public/data/subway_station_markers_offset.geojson",
+]
+
+[tasks."data:all"]
+depends = [
+    "data:basemap",
+    "data:citibike_docks",
+    "data:subway_geojson",
+    "data:subway_offsets",
+]
+
+[tasks."python:check"]
+run = [
+    "uv run ruff format --check .",
+    "uv run ruff check .",
+    "uv run ty check",
+    "uv run python -m unittest discover -s data -p '*_test.py'",
+]
