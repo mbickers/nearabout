@@ -23,5 +23,5 @@
   },
   // vite.config.ts is deliberately excluded: Vite strips its types without checking them
   // anyway, and a malformed config fails at dev-server startup.
-  "include": ["src"]
+  "include": ["frontend"]
 }
