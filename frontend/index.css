@@ -1,3 +1,8 @@
+@font-face {
+  font-family: "Inter Medium";
+  src: url("/data/fonts/Inter Medium/Inter Medium.ttf");
+}
+
 body {
   margin: 0;
 }
