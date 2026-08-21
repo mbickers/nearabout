@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS } from "./layer_definitions";
+import { LAYER_DEFINITIONS, MAP_FONT } from "./layer_definitions";
 
 export const LayerControls = ({
   layers,
@@ -18,7 +18,7 @@ export const LayerControls = ({
       gap: 6,
       padding: 8,
       background: "#ffffff",
-      font: "12px ui-monospace, monospace",
+      font: `14px "${MAP_FONT}", sans-serif`,
     }}
   >
     {layers.map(([enabled, layer]) => {
