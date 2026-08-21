@@ -1,6 +1,7 @@
 import type { LayerSpecification, Map as MapInstance, StyleSpecification } from "maplibre-gl";
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
+import { MAP_FONT } from "./layer_definitions";
 
 export type LayerZ = "background" | "feature" | "label";
 
@@ -24,7 +25,7 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
 
     return {
       version: 8 as const,
-      glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+      glyphs: "/data/fonts/{fontstack}/{range}.pbf",
       sources: Object.assign({}, ...styleFragments.map(({ sources }) => sources)),
       layers: styleFragments
         .flatMap(({ physicalLayers }) => physicalLayers)
@@ -65,7 +66,8 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
           gap: 2,
           padding: "2px 6px",
           background: "#ffffff",
-          font: "12px ui-monospace, monospace",
+          font: `14px "${MAP_FONT}", sans-serif`,
+          fontFeatureSettings: '"tnum"',
         }}
       >
         <strong>debug</strong>

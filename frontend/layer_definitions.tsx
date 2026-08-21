@@ -28,6 +28,11 @@ const DETAIL_FADE = interpolateOnZoom([
   [DETAIL_FADE_FULL, 1],
 ]);
 
+const DETAIL_LABEL_SIZE = interpolateOnZoom([
+  [DETAIL_FADE_IN, 13],
+  [17, 17],
+]);
+
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
   [DETAIL_FADE_IN, 1.9],
   [16, 2.5],
@@ -73,7 +78,17 @@ const drawCaret = ({ color }: { color: string }) => {
   return context.getImageData(0, 0, canvas.width, canvas.height);
 };
 
-const PROTOMAPS_FLAVOR = { ...namedFlavor("light"), background: "#ffffff", earth: "#ffffff" };
+// names both the glyph tiles data/fetch_map_fonts.py generates and the @font-face
+// frontend/index.css declares for the canvas bullets and the overlay panels
+export const MAP_FONT = "Inter Medium";
+const PROTOMAPS_FLAVOR = {
+  ...namedFlavor("light"),
+  background: "#ffffff",
+  earth: "#ffffff",
+  regular: MAP_FONT,
+  bold: MAP_FONT,
+  italic: MAP_FONT,
+};
 const PROTOMAPS_LAYERS = layers(SOURCE_ID, PROTOMAPS_FLAVOR, { lang: "en" });
 
 const protomapsLayer = <Style extends LayerSpecification = LayerSpecification>(
@@ -229,6 +244,7 @@ const streetLabelLayer = (id: string): PhysicalLayer => {
       ...layer.style,
       // minor names have a higher stock minzoom than the streets
       minzoom: Math.max(layer.style.minzoom ?? 0, DETAIL_FADE_IN),
+      layout: { ...layer.style.layout, "text-size": DETAIL_LABEL_SIZE },
       paint: { ...layer.style.paint, "text-opacity": DETAIL_FADE },
     },
   };
@@ -566,7 +582,7 @@ const drawBullet = ({ route, color, text_color }: SubwayBullet) => {
   context.fill();
 
   context.fillStyle = text_color;
-  context.font = `600 ${bulletPixels * 0.55}px system-ui, sans-serif`;
+  context.font = `${bulletPixels * 0.55}px "${MAP_FONT}"`;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(route.replace(/X$/, ""), center, center);
@@ -770,11 +786,8 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
               filter: ["has", `label_offset_${servicePeriod}`],
               layout: {
                 "text-field": ["get", "label"],
-                "text-font": ["Noto Sans Medium"],
-                "text-size": interpolateOnZoom([
-                  [11, 11],
-                  [16, 15],
-                ]),
+                "text-font": [MAP_FONT],
+                "text-size": DETAIL_LABEL_SIZE,
                 "text-offset": ["get", `label_offset_${servicePeriod}`],
                 "text-anchor": "bottom-left",
                 // the anchor places the block; without this, wrapped lines centre inside it
@@ -790,6 +803,9 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           },
         ],
         addStyleImages: async (map) => {
+          // canvas silently falls back to a system face for a webfont it has not already loaded
+          await document.fonts.load(`1em "${MAP_FONT}"`);
+
           if (!map.hasImage(localStationMarkerImage))
             map.addImage(localStationMarkerImage, drawStationMarker({ express: false }), {
               pixelRatio: 2,
