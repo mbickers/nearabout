@@ -24,6 +24,11 @@ run = "uv run python -m data.fetch_citibike_docks"
 sources = ["data/fetch_citibike_docks.py"]
 outputs = ["public/data/citibike_docks.geojson"]
 
+[tasks."data:map_fonts"]
+run = "uv run python -m data.fetch_map_fonts"
+sources = ["data/fetch_map_fonts.py"]
+outputs = ["public/data/fonts"]
+
 [tasks."data:subway_geojson"]
 run = "uv run python -m data.fetch_subway_geojson"
 sources = ["data/fetch_subway_geojson.py"]
@@ -63,6 +68,7 @@ outputs = [
 depends = [
     "data:basemap",
     "data:citibike_docks",
+    "data:map_fonts",
     "data:subway_geojson",
     "data:subway_offsets",
 ]
