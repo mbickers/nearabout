@@ -7,8 +7,7 @@ import { Map, type MapStyleFragment } from "./Map";
 export const App = () => {
   const [layers, setLayers] = useState<[enabled: boolean, layer: Layer][]>([
     [true, { kind: "geography", parksVisible: true }],
-    [true, { kind: "streets" }],
-    [true, { kind: "bike_lanes" }],
+    [true, { kind: "streets", bikeLanesVisible: true }],
     [true, { kind: "citibike_docks" }],
     [true, { kind: "subway", servicePeriod: "regular" }],
   ]);

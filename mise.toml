@@ -14,10 +14,10 @@ run = "uv run python -m data.fetch_basemap"
 sources = ["data/fetch_basemap.py"]
 outputs = ["public/data/nyc.pmtiles"]
 
-[tasks."data:bike_routes"]
-run = "uv run python -m data.fetch_bike_routes"
-sources = ["data/fetch_bike_routes.py"]
-outputs = ["public/data/bike_routes.geojson"]
+[tasks."data:roads"]
+run = "uv run python -m data.fetch_osm_roads"
+sources = ["data/fetch_osm_roads.py", "data/osm.py"]
+outputs = ["public/data/osm_roads.geojson"]
 
 [tasks."data:citibike_docks"]
 run = "uv run python -m data.fetch_citibike_docks"
@@ -52,10 +52,10 @@ outputs = [
 
 [tasks."data:subway_offsets"]
 run = "uv run python -m data.precompute_subway_offsets"
-depends = ["data:bike_routes", "data:subway_routes", "data:subway_stations"]
+depends = ["data:roads", "data:subway_routes", "data:subway_stations"]
 sources = [
     "data/precompute_subway_offsets.py",
-    "public/data/bike_routes.geojson",
+    "public/data/osm_roads.geojson",
     "public/data/subway_routes.geojson",
     "public/data/subway_station_routes.geojson",
 ]
@@ -69,6 +69,7 @@ depends = [
     "data:basemap",
     "data:citibike_docks",
     "data:map_fonts",
+    "data:roads",
     "data:subway_geojson",
     "data:subway_offsets",
 ]

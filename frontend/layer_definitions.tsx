@@ -214,17 +214,40 @@ const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   ),
 };
 
+const ROAD_SOURCE_ID = "osm_roads";
+
+const BIKE_LANE: ExpressionSpecification = ["==", ["get", "role"], "bike_lane"];
+
+// The road source names a street's kind and rank as the Protomaps schema does, so a layer cloned
+// from it keeps its line width and label placement and only has to be repointed and refiltered.
+const clonedStreetLayer = <Style extends LayerSpecification>(
+  id: string,
+  z: LayerZ,
+  filter: FilterSpecification,
+): { z: LayerZ; style: Style } => {
+  const { style } = protomapsLayer<Style>(id, z);
+  // a GeoJSON source has no source layer to select within
+  const { "source-layer": _sourceLayer, ...retargeted } = style as Style & {
+    "source-layer"?: string;
+  };
+  return {
+    z,
+    style: {
+      ...retargeted,
+      source: ROAD_SOURCE_ID,
+      filter: ["all", ["==", ["get", "role"], "street"], filter] as FilterSpecification,
+    } as Style,
+  };
+};
+
 const streetLayer = (id: string, filter: FilterSpecification): PhysicalLayer => {
-  const layer = protomapsLayer<LineLayerSpecification>(id, "feature");
+  const layer = clonedStreetLayer<LineLayerSpecification>(id, "feature", filter);
 
   return {
     ...layer,
     style: {
       ...layer.style,
       minzoom: DETAIL_FADE_IN,
-      // only the surface minor layer excludes service in its own filter, so the bridge and
-      // tunnel variants would otherwise render driveways and roadways inside a pier shed
-      filter: ["all", filter, ["!=", ["get", "kind_detail"], "service"]] as FilterSpecification,
       // the stock paint varies from white to grey by class and by tunnel
       paint: {
         "line-color": STREET_COLOR,
@@ -235,8 +258,16 @@ const streetLayer = (id: string, filter: FilterSpecification): PhysicalLayer => 
   };
 };
 
-const streetLabelLayer = (id: string): PhysicalLayer => {
-  const layer = protomapsLayer<SymbolLayerSpecification>(id, "label");
+// A link is drawn by the link layer alone, at the narrower width of a ramp, so a kind layer must
+// not draw it as well: two lines of the same colour would compose to a darker one as they fade in.
+const streetsOfKind = (kind: string): FilterSpecification => [
+  "all",
+  ["==", ["get", "kind"], kind],
+  ["!", ["get", "is_link"]],
+];
+
+const streetLabelLayer = (id: string, filter: FilterSpecification): PhysicalLayer => {
+  const layer = clonedStreetLayer<SymbolLayerSpecification>(id, "label", filter);
 
   return {
     ...layer,
@@ -250,120 +281,7 @@ const streetLabelLayer = (id: string): PhysicalLayer => {
   };
 };
 
-const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
-  label: "Streets",
-  mapStyleFragment: () => {
-    const minorStreetLabels = streetLabelLayer("roads_labels_minor");
-
-    return {
-      sources: PROTOMAPS_SOURCES,
-      physicalLayers: [
-        streetLayer("roads_tunnels_minor", [
-          "all",
-          ["has", "is_tunnel"],
-          ["==", ["get", "kind"], "minor_road"],
-        ]),
-        streetLayer("roads_tunnels_link", ["all", ["has", "is_tunnel"], ["has", "is_link"]]),
-        streetLayer("roads_tunnels_major", [
-          "all",
-          ["has", "is_tunnel"],
-          ["==", ["get", "kind"], "major_road"],
-        ]),
-        streetLayer("roads_tunnels_highway", [
-          "all",
-          ["has", "is_tunnel"],
-          ["==", ["get", "kind"], "highway"],
-          ["!", ["has", "is_link"]],
-        ]),
-        streetLayer("roads_link", ["has", "is_link"]),
-        streetLayer("roads_minor", [
-          "all",
-          ["!", ["has", "is_tunnel"]],
-          ["!", ["has", "is_bridge"]],
-          ["==", ["get", "kind"], "minor_road"],
-        ]),
-        streetLayer("roads_major", [
-          "all",
-          ["!", ["has", "is_tunnel"]],
-          ["!", ["has", "is_bridge"]],
-          ["==", ["get", "kind"], "major_road"],
-        ]),
-        streetLayer("roads_highway", [
-          "all",
-          ["!", ["has", "is_tunnel"]],
-          ["!", ["has", "is_bridge"]],
-          ["==", ["get", "kind"], "highway"],
-          ["!", ["has", "is_link"]],
-        ]),
-        streetLayer("roads_bridges_minor", [
-          "all",
-          ["has", "is_bridge"],
-          ["==", ["get", "kind"], "minor_road"],
-        ]),
-        streetLayer("roads_bridges_link", ["all", ["has", "is_bridge"], ["has", "is_link"]]),
-        streetLayer("roads_bridges_major", [
-          "all",
-          ["has", "is_bridge"],
-          ["==", ["get", "kind"], "major_road"],
-        ]),
-        streetLayer("roads_bridges_highway", [
-          "all",
-          ["has", "is_bridge"],
-          ["==", ["get", "kind"], "highway"],
-          ["!", ["has", "is_link"]],
-        ]),
-        {
-          z: "feature",
-          style: {
-            id: "street_one_way",
-            type: "symbol",
-            source: SOURCE_ID,
-            "source-layer": "roads",
-            minzoom: DETAIL_FADE_IN,
-            // the same street kinds rendered above, so that no caret is drawn over an absent street.
-            // reversible streets have no fixed direction
-            filter: [
-              "all",
-              ["in", ["get", "oneway"], ["literal", ["yes", "-1"]]],
-              ["!=", ["get", "kind_detail"], "service"],
-              ["in", ["get", "kind"], ["literal", ["minor_road", "major_road", "highway"]]],
-            ],
-            layout: {
-              "symbol-placement": "line",
-              "icon-image": "street_caret",
-              // -1 is the one-way that runs against the digitized geometry
-              "icon-rotate": ["case", ["==", ["get", "oneway"], "-1"], 180, 0],
-              "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-              "symbol-spacing": 100,
-            },
-            paint: { "icon-opacity": DETAIL_FADE },
-          },
-        },
-        {
-          ...minorStreetLabels,
-          style: {
-            ...minorStreetLabels.style,
-            // the minor filter also matches path and service-road labels, which have no line beneath
-            filter: [
-              "all",
-              ["==", ["get", "kind"], "minor_road"],
-              ["!=", ["get", "kind_detail"], "service"],
-            ] as FilterSpecification,
-          },
-        },
-        streetLabelLayer("roads_labels_major"),
-      ],
-      addStyleImages: (map) => {
-        if (map.hasImage("street_caret")) return;
-        map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
-          pixelRatio: CARET_RESOLUTION,
-        });
-      },
-    };
-  },
-};
-
-const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
+const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = (() => {
   const bikeColor = "#000000";
   const protectedBikeLanePaint = {
     "line-color": bikeColor,
@@ -403,103 +321,129 @@ const bikeLanesDefinition: LayerDefinition<LayerOfKind<"bike_lanes">> = (() => {
     </svg>
   );
 
-  return {
-    label: "Bike lanes",
-    mapStyleFragment: () => {
-      return {
-        sources: {
-          bike_routes: {
-            type: "geojson",
-            data: "/data/bike_routes.geojson",
-            generateId: true,
-          },
-        },
-        physicalLayers: [
-          {
-            z: "feature",
-            style: {
-              id: "bike_routes_protected",
-              type: "line",
-              source: "bike_routes",
-              // class I is the physically separated path
-              filter: ["==", ["get", "facilitycl"], "I"],
-              paint: protectedBikeLanePaint,
-            },
-          },
-          {
-            z: "feature",
-            style: {
-              id: "bike_routes_unprotected",
-              type: "line",
-              source: "bike_routes",
-              minzoom: DETAIL_FADE_IN,
-              filter: [
-                "all",
-                ["!=", ["get", "facilitycl"], "I"],
-                // Class III is shared lanes
-                ["!=", ["get", "facilitycl"], "III"],
-              ],
-              paint: unprotectedBikeLanePaint,
-            },
-          },
-          {
-            z: "feature",
-            style: {
-              id: "bike_one_way",
-              type: "symbol",
-              source: "bike_routes",
-              // 2 is the two-way route, R and L the one-way directions along and against the geometry
-              // the DOT feed splits routes into block-length features, and MapLibre places at least one
-              // line symbol on each feature. Sampling feature IDs more aggressively at overview zooms
-              // controls density across those segments.
-              // NYC has no unprotected contraflow lanes; a future contraflow lane would require revisiting
-              // the Class I restriction.
-              filter: [
-                "all",
-                ["==", ["get", "facilitycl"], "I"],
-                ["!=", ["get", "bikedir"], "2"],
-                [
-                  "step",
-                  ["zoom"],
-                  ["==", ["%", ["id"], 15], 0],
-                  13,
-                  ["==", ["%", ["id"], 6], 0],
-                  14,
-                  ["==", ["%", ["id"], 3], 0],
-                ],
-              ],
-              layout: {
-                "symbol-placement": "line",
-                "icon-image": "bike_caret",
-                "icon-rotate": ["case", ["==", ["get", "bikedir"], "L"], 180, 0],
-                "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-                // six times the spacing the streets use, since spacing applies within one feature and the
-                // bike data is cut at every block, where the basemap carries a street as one line
-                "symbol-spacing": 600,
-                // existing labels can suppress a caret, but a caret cannot suppress symbols placed later
-                "icon-ignore-placement": true,
-              },
-            },
-          },
-        ],
-        addStyleImages: (map) => {
-          if (!map.hasImage("bike_caret")) {
-            map.addImage("bike_caret", drawCaret({ color: bikeColor }), {
-              pixelRatio: CARET_RESOLUTION,
-            });
-          }
-        },
-      };
+  const bikeLaneLayers: PhysicalLayer[] = [
+    {
+      z: "feature",
+      style: {
+        id: "bike_lanes_protected",
+        type: "line",
+        source: ROAD_SOURCE_ID,
+        filter: ["all", BIKE_LANE, ["==", ["get", "class"], "protected"]],
+        paint: protectedBikeLanePaint,
+      },
     },
-    Controls: () => (
+    {
+      z: "feature",
+      style: {
+        id: "bike_lanes_painted",
+        type: "line",
+        source: ROAD_SOURCE_ID,
+        minzoom: DETAIL_FADE_IN,
+        filter: ["all", BIKE_LANE, ["==", ["get", "class"], "painted"]],
+        paint: unprotectedBikeLanePaint,
+      },
+    },
+  ];
+
+  const bikeOneWayLayer: PhysicalLayer = {
+    z: "feature",
+    style: {
+      id: "bike_one_way",
+      type: "symbol",
+      source: ROAD_SOURCE_ID,
+      minzoom: DETAIL_FADE_IN,
+      filter: ["all", BIKE_LANE, ["get", "one_way"]],
+      layout: {
+        "symbol-placement": "line",
+        // no rotation: a one-way feature's geometry runs in the direction of travel
+        "icon-image": "bike_caret",
+        "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+        "symbol-spacing": 100,
+        // existing labels can suppress a caret, but a caret cannot suppress symbols placed later
+        "icon-ignore-placement": true,
+      },
+      paint: { "icon-opacity": DETAIL_FADE },
+    },
+  };
+
+  return {
+    label: "Streets",
+    mapStyleFragment: ({ bikeLanesVisible }) => ({
+      sources: {
+        ...PROTOMAPS_SOURCES,
+        [ROAD_SOURCE_ID]: { type: "geojson", data: "/data/osm_roads.geojson" },
+      },
+      physicalLayers: [
+        streetLayer("roads_minor", streetsOfKind("minor_road")),
+        streetLayer("roads_major", streetsOfKind("major_road")),
+        streetLayer("roads_highway", streetsOfKind("highway")),
+        streetLayer("roads_link", ["get", "is_link"]),
+        {
+          z: "feature",
+          style: {
+            id: "street_one_way",
+            type: "symbol",
+            source: ROAD_SOURCE_ID,
+            minzoom: DETAIL_FADE_IN,
+            // a bike lane running with traffic already shows the direction, so the street cedes
+            // its caret to the lane's; with lanes hidden there is no lane caret to cede to
+            filter: [
+              "all",
+              ["get", "oneway"],
+              bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
+            ],
+            layout: {
+              "symbol-placement": "line",
+              // no rotation: each street's geometry runs in its direction of travel
+              "icon-image": "street_caret",
+              "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+              "symbol-spacing": 100,
+            },
+            paint: { "icon-opacity": DETAIL_FADE },
+          },
+        },
+        // after the street carets, so a car arrow sits beneath the lane rather than over it
+        ...(bikeLanesVisible ? [...bikeLaneLayers, bikeOneWayLayer] : []),
+        streetLabelLayer("roads_labels_minor", ["==", ["get", "kind"], "minor_road"]),
+        streetLabelLayer("roads_labels_major", [
+          "in",
+          ["get", "kind"],
+          ["literal", ["major_road", "highway"]],
+        ]),
+      ],
+      addStyleImages: (map) => {
+        if (!map.hasImage("street_caret"))
+          map.addImage("street_caret", drawCaret({ color: STREET_COLOR }), {
+            pixelRatio: CARET_RESOLUTION,
+          });
+        if (!map.hasImage("bike_caret"))
+          map.addImage("bike_caret", drawCaret({ color: bikeColor }), {
+            pixelRatio: CARET_RESOLUTION,
+          });
+      },
+    }),
+    Controls: ({ layer, disabled, onChange }) => (
       <div style={{ display: "grid", gap: 3 }}>
-        <LegendRows
-          items={[
-            { label: "Protected", legend: protectedBikeLaneLegend },
-            { label: "Unprotected", legend: unprotectedBikeLaneLegend },
-          ]}
-        />
-        <div>Shared lanes not shown.</div>
+        <label>
+          <input
+            type="checkbox"
+            checked={layer.bikeLanesVisible}
+            disabled={disabled}
+            onChange={({ target }) => onChange({ ...layer, bikeLanesVisible: target.checked })}
+          />{" "}
+          Bike lanes
+        </label>
+        {layer.bikeLanesVisible ? (
+          <div style={{ display: "grid", gap: 3, marginLeft: 22 }}>
+            <LegendRows
+              items={[
+                { label: "Protected", legend: protectedBikeLaneLegend },
+                { label: "Unprotected", legend: unprotectedBikeLaneLegend },
+              ]}
+            />
+            <div>Shared lanes not shown.</div>
+          </div>
+        ) : null}
       </div>
     ),
   };
@@ -877,7 +821,6 @@ export const LAYER_DEFINITIONS: {
 } = {
   geography: geographyDefinition,
   streets: streetsDefinition,
-  bike_lanes: bikeLanesDefinition,
   citibike_docks: citibikeDocksDefinition,
   subway: subwayDefinition,
 };

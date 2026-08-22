@@ -4,7 +4,6 @@ export type ServicePeriod = (typeof SERVICE_PERIODS)[number];
 
 export type Layer =
   | { kind: "geography"; parksVisible: boolean }
-  | { kind: "streets" }
-  | { kind: "bike_lanes" }
+  | { kind: "streets"; bikeLanesVisible: boolean }
   | { kind: "citibike_docks" }
   | { kind: "subway"; servicePeriod: ServicePeriod };
