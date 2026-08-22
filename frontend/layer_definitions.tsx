@@ -728,6 +728,12 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
                 // never displaces a label: placement runs top layer first, so the labels are already down
                 "icon-ignore-placement": true,
               },
+              paint: {
+                "icon-opacity": interpolateOnZoom([
+                  [10, 0],
+                  [12, 1],
+                ]),
+              },
             },
           },
           {
