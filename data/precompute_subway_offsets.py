@@ -39,22 +39,13 @@ def derive_station_marker_offsets(stations, subway_offsets):
                 (start, end, feature["properties"]["offset"])
             )
 
-    stations_by_location = {}
-    for feature in stations["features"]:
-        key = tuple(feature["geometry"]["coordinates"]), feature["properties"]["station_name"]
-        stations_by_location.setdefault(key, []).append(feature)
-
     features = []
-    for (position, _), station_routes in stations_by_location.items():
-        marker = next(feature for feature in station_routes if "label" in feature["properties"])
-        properties = dict(marker["properties"])
+    for feature in stations["features"]:
+        position = feature["geometry"]["coordinates"]
+        properties = dict(feature["properties"])
         for period in ("regular", "late_night", "weekend"):
             vectors = []
-            for color in {
-                feature["properties"]["color"]
-                for feature in station_routes
-                if f"offset_{period}" in feature["properties"]
-            }:
+            for color in properties[f"colors_{period}"]:
 
                 def distance_to_segment(segment, station_position=position):
                     start, end, _ = segment
@@ -88,7 +79,7 @@ def derive_station_marker_offsets(stations, subway_offsets):
         features.append(
             {
                 "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": list(position)},
+                "geometry": feature["geometry"],
                 "properties": properties,
             }
         )
