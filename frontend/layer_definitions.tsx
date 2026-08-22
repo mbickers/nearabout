@@ -729,7 +729,6 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
               id: "subway_stations_local_overview",
               type: "symbol",
               source: "subway_station_markers_offset",
-              maxzoom: stationDetailZoom,
               filter: [
                 "all",
                 ["has", `label_offset_${servicePeriod}`],
@@ -741,7 +740,10 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
                   [11, ["get", `marker_offset_${servicePeriod}_11`]],
                   [14, ["get", `marker_offset_${servicePeriod}_14`]],
                 ]),
-                "icon-allow-overlap": true,
+                // above the detail zoom the marker is the fallback for a station whose label was
+                // dropped, so it yields to any symbol already placed
+                "icon-allow-overlap": ["step", ["zoom"], true, stationDetailZoom, false],
+                // never displaces a label: placement runs top layer first, so the labels are already down
                 "icon-ignore-placement": true,
               },
             },
@@ -752,7 +754,6 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
               id: "subway_stations_express_overview",
               type: "symbol",
               source: "subway_station_markers_offset",
-              maxzoom: stationDetailZoom,
               filter: [
                 "all",
                 ["has", `label_offset_${servicePeriod}`],
@@ -764,7 +765,10 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
                   [11, ["get", `marker_offset_${servicePeriod}_11`]],
                   [14, ["get", `marker_offset_${servicePeriod}_14`]],
                 ]),
-                "icon-allow-overlap": true,
+                // above the detail zoom the marker is the fallback for a station whose label was
+                // dropped, so it yields to any symbol already placed
+                "icon-allow-overlap": ["step", ["zoom"], true, stationDetailZoom, false],
+                // never displaces a label: placement runs top layer first, so the labels are already down
                 "icon-ignore-placement": true,
               },
             },
