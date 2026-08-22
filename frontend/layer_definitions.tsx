@@ -616,36 +616,22 @@ const drawBulletBlock = (block: string, bulletsByRoute: Map<string, SubwayBullet
 };
 
 const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
-  const localStationMarkerImage = "subway-station-local";
-  const expressStationMarkerImage = "subway-station-express";
-  const drawStationMarker = ({ express }: { express: boolean }) => {
+  const stationMarkerImage = "subway-station";
+  const drawStationMarker = () => {
     const canvas = document.createElement("canvas");
     canvas.width = 20;
     canvas.height = 20;
     const context = canvas.getContext("2d")!;
     context.beginPath();
-    context.arc(10, 10, express ? 7 : 7.5, 0, 2 * Math.PI);
-    context.fillStyle = express ? "#ffffff" : "#000000";
+    context.arc(10, 10, 7.5, 0, 2 * Math.PI);
+    context.fillStyle = "#000000";
     context.fill();
-    if (express) {
-      context.strokeStyle = "#000000";
-      context.lineWidth = 3;
-      context.stroke();
-    }
     return context.getImageData(0, 0, canvas.width, canvas.height);
   };
-  const localStationMarkerPaint = {
+  const stationMarkerLegend = circleLegend({
     "circle-radius": 3.75,
     "circle-color": "#000000",
-  } satisfies CircleLayerSpecification["paint"];
-  const localStationMarkerLegend = circleLegend(localStationMarkerPaint);
-  const expressStationMarkerPaint = {
-    "circle-radius": 3.5,
-    "circle-color": "#ffffff",
-    "circle-stroke-color": "#000000",
-    "circle-stroke-width": 1.5,
-  } satisfies CircleLayerSpecification["paint"];
-  const expressStationMarkerLegend = circleLegend(expressStationMarkerPaint);
+  } satisfies CircleLayerSpecification["paint"]);
   const entranceMarkerPaint = {
     "circle-radius": interpolateOnZoom([
       [DETAIL_FADE_IN, 3.5],
@@ -726,41 +712,12 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           {
             z: "feature",
             style: {
-              id: "subway_stations_local_overview",
+              id: "subway_stations_overview",
               type: "symbol",
               source: "subway_station_markers_offset",
-              filter: [
-                "all",
-                ["has", `label_offset_${servicePeriod}`],
-                ["!=", ["get", `express_${servicePeriod}`], true],
-              ],
+              filter: ["has", `label_offset_${servicePeriod}`],
               layout: {
-                "icon-image": localStationMarkerImage,
-                "icon-offset": interpolateOnZoom([
-                  [11, ["get", `marker_offset_${servicePeriod}_11`]],
-                  [14, ["get", `marker_offset_${servicePeriod}_14`]],
-                ]),
-                // above the detail zoom the marker is the fallback for a station whose label was
-                // dropped, so it yields to any symbol already placed
-                "icon-allow-overlap": ["step", ["zoom"], true, stationDetailZoom, false],
-                // never displaces a label: placement runs top layer first, so the labels are already down
-                "icon-ignore-placement": true,
-              },
-            },
-          },
-          {
-            z: "feature",
-            style: {
-              id: "subway_stations_express_overview",
-              type: "symbol",
-              source: "subway_station_markers_offset",
-              filter: [
-                "all",
-                ["has", `label_offset_${servicePeriod}`],
-                ["==", ["get", `express_${servicePeriod}`], true],
-              ],
-              layout: {
-                "icon-image": expressStationMarkerImage,
+                "icon-image": stationMarkerImage,
                 "icon-offset": interpolateOnZoom([
                   [11, ["get", `marker_offset_${servicePeriod}_11`]],
                   [14, ["get", `marker_offset_${servicePeriod}_14`]],
@@ -822,14 +779,8 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           // canvas silently falls back to a system face for a webfont it has not already loaded
           await document.fonts.load(`1em "${MAP_FONT}"`);
 
-          if (!map.hasImage(localStationMarkerImage))
-            map.addImage(localStationMarkerImage, drawStationMarker({ express: false }), {
-              pixelRatio: 2,
-            });
-          if (!map.hasImage(expressStationMarkerImage))
-            map.addImage(expressStationMarkerImage, drawStationMarker({ express: true }), {
-              pixelRatio: 2,
-            });
+          if (!map.hasImage(stationMarkerImage))
+            map.addImage(stationMarkerImage, drawStationMarker(), { pixelRatio: 2 });
 
           const response = await fetch("/data/subway_bullets.json");
           const { bullets, blocks } = (await response.json()) as {
@@ -848,8 +799,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
       <div style={{ display: "grid", gap: 4 }}>
         <LegendRows
           items={[
-            { label: "Local station", legend: localStationMarkerLegend },
-            { label: "Express station", legend: expressStationMarkerLegend },
+            { label: "Station", legend: stationMarkerLegend },
             { label: "Entrance/exit", legend: entranceMarkerLegend },
           ]}
         />
