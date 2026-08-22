@@ -560,34 +560,59 @@ type SubwayBullet = {
   text_color: string;
 };
 
-const drawBullet = ({ route, color, text_color }: SubwayBullet) => {
-  const bulletPixels = 44;
-  const canvas = document.createElement("canvas");
-  canvas.width = bulletPixels;
-  canvas.height = bulletPixels;
-  const context = canvas.getContext("2d")!;
-  const center = bulletPixels / 2;
-  const radius = center - 1;
+// A station's bullets and its name are one symbol, so that the collision engine places the whole
+// label or none of it. The bullets are composited into a single icon named by the block string:
+// rows of comma-separated route symbols, rows separated by "|".
+const BULLET_PIXELS = 44;
+const BULLET_CELL_PIXELS = 48;
+
+const drawBullet = ({
+  context,
+  bullet: { route, color, text_color },
+  centerX,
+  centerY,
+}: {
+  context: CanvasRenderingContext2D;
+  bullet: SubwayBullet;
+  centerX: number;
+  centerY: number;
+}) => {
+  const radius = BULLET_PIXELS / 2 - 1;
 
   context.fillStyle = color;
   context.beginPath();
   if (route.endsWith("X")) {
-    context.moveTo(center, center - radius);
-    context.lineTo(center + radius, center);
-    context.lineTo(center, center + radius);
-    context.lineTo(center - radius, center);
+    context.moveTo(centerX, centerY - radius);
+    context.lineTo(centerX + radius, centerY);
+    context.lineTo(centerX, centerY + radius);
+    context.lineTo(centerX - radius, centerY);
   } else {
-    context.arc(center, center, radius, 0, 2 * Math.PI);
+    context.arc(centerX, centerY, radius, 0, 2 * Math.PI);
   }
   context.fill();
 
   context.fillStyle = text_color;
-  context.font = `${bulletPixels * 0.55}px "${MAP_FONT}"`;
+  context.font = `${BULLET_PIXELS * 0.55}px "${MAP_FONT}"`;
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(route.replace(/X$/, ""), center, center);
+  context.fillText(route.replace(/X$/, ""), centerX, centerY);
+};
 
-  return context.getImageData(0, 0, bulletPixels, bulletPixels);
+const drawBulletBlock = (block: string, bulletsByRoute: Map<string, SubwayBullet>) => {
+  const rows = block.split("|").map((row) => row.split(","));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(...rows.map((row) => row.length)) * BULLET_CELL_PIXELS;
+  canvas.height = rows.length * BULLET_CELL_PIXELS;
+  const context = canvas.getContext("2d")!;
+  for (const [rowIndex, row] of rows.entries())
+    for (const [columnIndex, route] of row.entries())
+      drawBullet({
+        context,
+        bullet: bulletsByRoute.get(route)!,
+        centerX: (columnIndex + 0.5) * BULLET_CELL_PIXELS,
+        centerY: (rowIndex + 0.5) * BULLET_CELL_PIXELS,
+      });
+  return context.getImageData(0, 0, canvas.width, canvas.height);
 };
 
 const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
@@ -757,34 +782,20 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
           {
             z: "label",
             style: {
-              id: "subway_station_routes",
+              id: "subway_station_labels",
               type: "symbol",
               source: "subway_station_routes",
               minzoom: stationDetailZoom,
-              filter: ["has", `offset_${servicePeriod}`],
+              filter: ["has", `bullets_${servicePeriod}`],
               layout: {
-                "icon-image": ["get", "route"],
-                "icon-offset": ["get", `offset_${servicePeriod}`],
+                "icon-image": ["get", `bullets_${servicePeriod}`],
+                // the block grows rightwards from the station and is centred on it vertically
+                "icon-anchor": "left",
                 "icon-size": interpolateOnZoom([
                   [11, 0.4],
                   [14, 0.6],
                   [18, 1],
                 ]),
-                // keep a station's bullets together rather than letting the placer drop some of the row
-                "icon-allow-overlap": true,
-                "icon-ignore-placement": true,
-              },
-            },
-          },
-          {
-            z: "label",
-            style: {
-              id: "subway_station_names",
-              type: "symbol",
-              source: "subway_station_routes",
-              minzoom: stationDetailZoom,
-              filter: ["has", `label_offset_${servicePeriod}`],
-              layout: {
                 "text-field": ["get", "label"],
                 "text-font": [MAP_FONT],
                 "text-size": DETAIL_LABEL_SIZE,
@@ -798,6 +809,7 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
                 "text-halo-color": "#ffffff",
                 "text-halo-width": 1.5,
                 "text-opacity": DETAIL_FADE,
+                "icon-opacity": DETAIL_FADE,
               },
             },
           },
@@ -816,10 +828,14 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             });
 
           const response = await fetch("/data/subway_bullets.json");
-          const subwayBullets = (await response.json()) as SubwayBullet[];
-          for (const bullet of subwayBullets) {
-            if (!map.hasImage(bullet.route))
-              map.addImage(bullet.route, drawBullet(bullet), { pixelRatio: 2 });
+          const { bullets, blocks } = (await response.json()) as {
+            bullets: SubwayBullet[];
+            blocks: string[];
+          };
+          const bulletsByRoute = new Map(bullets.map((bullet) => [bullet.route, bullet]));
+          for (const block of blocks) {
+            if (!map.hasImage(block))
+              map.addImage(block, drawBulletBlock(block, bulletsByRoute), { pixelRatio: 2 });
           }
         },
       };

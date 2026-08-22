@@ -114,34 +114,25 @@ def main():
     for station_id, station in stations.items():
         complexes.setdefault(station_key_of[station_id], []).append((station_id, station))
 
-    def bullet_offsets(route_ids):
-        """Map each route_id to its icon offset.
+    def bullet_rows(route_ids):
+        """Split the bullets of one complex into the rows they are drawn on.
 
         A complex wider than five bullets wraps onto further rows, which are broken between
         colour groups so that no group is split across two rows.
         """
-        # icon-offset units, which maplibre scales by icon-size
-        bullet_spacing = 24
         bullet_row_limit = 5
+        if len(route_ids) <= bullet_row_limit:
+            return [list(route_ids)]
         rows = [[]]
-        if len(route_ids) > bullet_row_limit:
-            for _, group in itertools.groupby(route_ids, key=lambda r: routes[r]["color"]):
-                group = list(group)
-                if rows[-1] and len(rows[-1]) + len(group) > bullet_row_limit:
-                    rows.append([])
-                rows[-1].extend(group)
-        else:
-            rows = [list(route_ids)]
-        return {
-            route_id: [
-                (column + 0.5) * bullet_spacing,
-                (index - (len(rows) - 1) / 2) * bullet_spacing,
-            ]
-            for index, row in enumerate(rows)
-            for column, route_id in enumerate(row)
-        }
+        for _, group in itertools.groupby(route_ids, key=lambda r: routes[r]["color"]):
+            group = list(group)
+            if rows[-1] and len(rows[-1]) + len(group) > bullet_row_limit:
+                rows.append([])
+            rows[-1].extend(group)
+        return rows
 
     features = []
+    bullet_blocks = set()
     for (_, name), members in complexes.items():
         lon = sum(station["lon"] for _, station in members) / len(members)
         lat = sum(station["lat"] for _, station in members) / len(members)
@@ -159,41 +150,42 @@ def main():
                     if count >= 0.2 * len(route_trips[period][route_id])
                 }
             )
-        offsets = {
-            period: bullet_offsets(ordered_bullets(here[period])) for period in service_periods
-        }
-        for position, route_id in enumerate(ordered_bullets(set().union(*here.values()))):
-            properties = {
-                "station_name": name,
-                **routes[route_id],
+        properties = {"label": name}
+        for period in service_periods:
+            properties[f"colors_{period}"] = sorted({routes[r]["color"] for r in here[period]})
+            if not here[period]:
+                continue
+            rows = bullet_rows(ordered_bullets(here[period]))
+            block = "|".join(",".join(routes[r]["route"] for r in row) for row in rows)
+            bullet_blocks.add(block)
+            properties[f"bullets_{period}"] = block
+            # the label clears every row the bullets wrap onto
+            properties[f"label_offset_{period}"] = [0, -((len(rows) - 1) * 0.53 + 0.41)]
+            properties[f"express_{period}"] = bool(here[period] & express_route_ids)
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": properties,
             }
-            for period in service_periods:
-                if route_id in offsets[period]:
-                    properties[f"offset_{period}"] = offsets[period][route_id]
-            # the label goes on one bullet per station, offset clear of every row it wraps onto
-            if position == 0:
-                properties["label"] = name
-                for period in service_periods:
-                    if offsets[period]:
-                        rows = len({y for _, y in offsets[period].values()})
-                        properties[f"label_offset_{period}"] = [0, -((rows - 1) * 0.53 + 0.41)]
-                        properties[f"express_{period}"] = bool(here[period] & express_route_ids)
-            features.append(
-                {
-                    "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [lon, lat]},
-                    "properties": properties,
-                }
-            )
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     geojson_path = output_dir / "subway_station_routes.geojson"
     geojson_path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
-    # The frontend needs routes separately because it draws one bullet image per route.
+    # The frontend composites one image per distinct block of bullets, drawing each bullet from
+    # its route's colours.
     bullets_path = output_dir / "subway_bullets.json"
-    bullets_path.write_text(json.dumps(sorted(routes.values(), key=lambda bullet: bullet["route"])))
+    bullets_path.write_text(
+        json.dumps(
+            {
+                "bullets": sorted(routes.values(), key=lambda bullet: bullet["route"]),
+                "blocks": sorted(bullet_blocks),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
