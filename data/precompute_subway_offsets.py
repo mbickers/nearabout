@@ -414,11 +414,14 @@ def derive_subway_offsets(
 def main():
     data_dir = Path(__file__).resolve().parent.parent / "public" / "data"
     subway = json.loads((data_dir / "subway_routes.geojson").read_text())
-    bike = json.loads((data_dir / "bike_routes.geojson").read_text())
+    roads = json.loads((data_dir / "osm_roads.geojson").read_text())
     protected_bike = {
         "type": "FeatureCollection",
         "features": [
-            feature for feature in bike["features"] if feature["properties"]["facilitycl"] == "I"
+            feature
+            for feature in roads["features"]
+            if feature["properties"]["role"] == "bike_lane"
+            and feature["properties"]["class"] == "protected"
         ],
     }
     subway_offsets = derive_subway_offsets(subway, protected_bike)
