@@ -45,21 +45,17 @@ def main():
             )
         )
 
-    shapes_by_color = {}
-    for route_id, shape_ids in sorted(shapes_of_route.items()):
-        for shape_id in sorted(shape_ids):
-            shapes_by_color.setdefault(routes[route_id]["color"], []).append(
-                [(lon, lat) for _, lon, lat in sorted(points[shape_id])]
-            )
-
-    # Geometric normalization belongs to precompute_subway_offsets.py.
     features = [
         {
             "type": "Feature",
-            "geometry": {"type": "MultiLineString", "coordinates": shapes},
-            "properties": {"color": color},
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [(lon, lat) for _, lon, lat in sorted(points[shape_id])],
+            },
+            "properties": {**routes[route_id], "shape": shape_id},
         }
-        for color, shapes in sorted(shapes_by_color.items())
+        for route_id, shape_ids in sorted(shapes_of_route.items())
+        for shape_id in sorted(shape_ids)
     ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

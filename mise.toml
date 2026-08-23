@@ -50,20 +50,6 @@ outputs = [
     "public/data/subway_bullets.json",
 ]
 
-[tasks."data:subway_offsets"]
-run = "uv run python -m data.precompute_subway_offsets"
-depends = ["data:roads", "data:subway_routes", "data:subway_stations"]
-sources = [
-    "data/precompute_subway_offsets.py",
-    "public/data/osm_roads.geojson",
-    "public/data/subway_routes.geojson",
-    "public/data/subway_station_routes.geojson",
-]
-outputs = [
-    "public/data/subway_routes_offset.geojson",
-    "public/data/subway_station_markers_offset.geojson",
-]
-
 [tasks."data:all"]
 depends = [
     "data:basemap",
@@ -71,7 +57,8 @@ depends = [
     "data:map_fonts",
     "data:roads",
     "data:subway_geojson",
-    "data:subway_offsets",
+    "data:subway_routes",
+    "data:subway_stations",
 ]
 
 [tasks."python:check"]

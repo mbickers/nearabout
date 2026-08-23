@@ -599,19 +599,10 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
 
       return {
         sources: {
-          subway_routes_offset: {
-            type: "geojson",
-            data: "/data/subway_routes_offset.geojson",
-            // The default 0.375px tolerance is about 5.4m at zoom 13 in NYC, so it drops 5m segments.
-            tolerance: 0,
-          },
+          subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
           subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
           subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
           subway_station_routes: { type: "geojson", data: "/data/subway_station_routes.geojson" },
-          subway_station_markers_offset: {
-            type: "geojson",
-            data: "/data/subway_station_markers_offset.geojson",
-          },
         },
         physicalLayers: [
           {
@@ -640,16 +631,11 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             style: {
               id: "subway_routes",
               type: "line",
-              source: "subway_routes_offset",
+              source: "subway_routes",
               layout: { "line-cap": "square", "line-join": "round" },
               paint: {
                 "line-color": ["get", "color"],
                 "line-width": SUBWAY_WIDTH,
-                "line-offset": interpolateOnZoom([
-                  [11, ["*", ["get", "offset"], 2]],
-                  [14, ["*", ["get", "offset"], 5]],
-                  [16, ["*", ["get", "offset"], 8]],
-                ]),
               },
             },
           },
@@ -658,14 +644,10 @@ const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = (() => {
             style: {
               id: "subway_stations_overview",
               type: "symbol",
-              source: "subway_station_markers_offset",
+              source: "subway_station_routes",
               filter: ["has", `label_offset_${servicePeriod}`],
               layout: {
                 "icon-image": stationMarkerImage,
-                "icon-offset": interpolateOnZoom([
-                  [11, ["get", `marker_offset_${servicePeriod}_11`]],
-                  [14, ["get", `marker_offset_${servicePeriod}_14`]],
-                ]),
                 // above the detail zoom the marker is the fallback for a station whose label was
                 // dropped, so it yields to any symbol already placed
                 "icon-allow-overlap": ["step", ["zoom"], true, stationDetailZoom, false],
