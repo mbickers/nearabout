@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layer_definitions";
 
-export type LayerZ = "background" | "feature" | "label";
+export type LayerZ = "background" | "feature" | "label" | "debug";
 
 export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 
@@ -21,7 +21,7 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
   // would otherwise trigger
   const mapStyle = useMemo(() => {
-    const zOrder: Record<LayerZ, number> = { background: 0, feature: 1, label: 2 };
+    const zOrder: Record<LayerZ, number> = { background: 0, feature: 1, label: 2, debug: 3 };
 
     return {
       version: 8 as const,
