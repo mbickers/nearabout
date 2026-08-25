@@ -28,6 +28,11 @@ const DETAIL_FADE = interpolateOnZoom([
   [DETAIL_FADE_FULL, 1],
 ]);
 
+const DETAIL_FADE_OUT = interpolateOnZoom([
+  [DETAIL_FADE_IN, 1],
+  [DETAIL_FADE_FULL, 0],
+]);
+
 const DETAIL_LABEL_SIZE = interpolateOnZoom([
   [DETAIL_FADE_IN, 13],
   [17, 17],
@@ -49,34 +54,63 @@ const SUBWAY_WIDTH = interpolateOnZoom([
 // avoids resampling blur at the sizes CARET_SIZE_STOPS reaches
 const CARET_RESOLUTION = 4;
 
-const drawCaret = ({ color }: { color: string }) => {
-  // CSS pixels at CARET_SIZE_STOPS size 1
-  const caretLengthPixels = 3.5;
-  const caretHeightPixels = 7;
-  const caretStrokePixels = 1;
-  const inset = caretStrokePixels / 2;
-  const width = caretLengthPixels + caretStrokePixels;
+// CSS pixels at CARET_SIZE_STOPS size 1
+const CARET_LENGTH_PIXELS = 3.5;
+const CARET_HEIGHT_PIXELS = 7;
+const CARET_STROKE_PIXELS = 1;
+const CARET_INK_LENGTH_PIXELS = CARET_LENGTH_PIXELS + CARET_STROKE_PIXELS;
 
+// a gap of about a third of a caret's length reads as one stream rather than as separate arrows
+const CONTINUOUS_CARET_SPACING_PIXELS = CARET_INK_LENGTH_PIXELS * 1.35;
+
+const CARET_INSET = CARET_STROKE_PIXELS / 2;
+
+const drawCaret = ({ color }: { color: string }) => {
   const canvas = document.createElement("canvas");
-  canvas.width = width * CARET_RESOLUTION;
-  canvas.height = caretHeightPixels * CARET_RESOLUTION;
+  canvas.width = CARET_INK_LENGTH_PIXELS * CARET_RESOLUTION;
+  canvas.height = CARET_HEIGHT_PIXELS * CARET_RESOLUTION;
   const context = canvas.getContext("2d")!;
   context.scale(CARET_RESOLUTION, CARET_RESOLUTION);
 
   context.strokeStyle = color;
-  context.lineWidth = caretStrokePixels;
+  context.lineWidth = CARET_STROKE_PIXELS;
   context.lineCap = "round";
   context.lineJoin = "round";
 
-  // the ink spans exactly caretHeightPixels at any stroke width
+  // the ink spans exactly CARET_HEIGHT_PIXELS at any stroke width
   context.beginPath();
-  context.moveTo(inset, inset);
-  context.lineTo(inset + caretLengthPixels, caretHeightPixels / 2);
-  context.lineTo(inset, caretHeightPixels - inset);
+  context.moveTo(CARET_INSET, CARET_INSET);
+  context.lineTo(CARET_INSET + CARET_LENGTH_PIXELS, CARET_HEIGHT_PIXELS / 2);
+  context.lineTo(CARET_INSET, CARET_HEIGHT_PIXELS - CARET_INSET);
   context.stroke();
 
   return context.getImageData(0, 0, canvas.width, canvas.height);
 };
+
+const caretStreamLegend = ({ color, width }: { color: string; width: number }) => (
+  <svg width={width} height={CARET_HEIGHT_PIXELS} aria-hidden="true">
+    {Array.from({ length: Math.floor(width / CONTINUOUS_CARET_SPACING_PIXELS) }, (_, index) => {
+      const left = CARET_INSET + index * CONTINUOUS_CARET_SPACING_PIXELS;
+      return (
+        <polyline
+          key={left}
+          points={[
+            [left, CARET_INSET],
+            [left + CARET_LENGTH_PIXELS, CARET_HEIGHT_PIXELS / 2],
+            [left, CARET_HEIGHT_PIXELS - CARET_INSET],
+          ]
+            .map(([x, y]) => `${x},${y}`)
+            .join(" ")}
+          fill="none"
+          stroke={color}
+          strokeWidth={CARET_STROKE_PIXELS}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    })}
+  </svg>
+);
 
 // names both the glyph tiles data/fetch_map_fonts.py generates and the @font-face
 // frontend/index.css declares for the canvas bullets and the overlay panels
@@ -286,19 +320,10 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = (() => {
   const protectedBikeLanePaint = {
     "line-color": bikeColor,
     "line-width": SUBWAY_WIDTH,
+    // where the caret stream takes over, the line beneath it would only thicken the ink
+    "line-opacity": ["case", ["get", "one_way"], DETAIL_FADE_OUT, 1],
   } satisfies LineLayerSpecification["paint"];
-  const protectedBikeLaneLegend = (
-    <svg width="34" height="8" aria-hidden="true">
-      <line
-        x1="1"
-        y1="4"
-        x2="33"
-        y2="4"
-        stroke={bikeColor}
-        strokeWidth={ROUTE_WIDTH_AT_DETAIL_ZOOM}
-      />
-    </svg>
-  );
+  const protectedBikeLaneLegend = caretStreamLegend({ color: bikeColor, width: 34 });
   const unprotectedLineWidthAtMaximumZoom = 1.8;
   const unprotectedBikeLanePaint = {
     "line-color": bikeColor,
@@ -345,26 +370,36 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = (() => {
     },
   ];
 
-  const bikeOneWayLayer: PhysicalLayer = {
+  const bikeOneWayLayer = (layerClass: "protected" | "painted"): PhysicalLayer => ({
     z: "feature",
     style: {
-      id: "bike_one_way",
+      id: `bike_one_way_${layerClass}`,
       type: "symbol",
       source: ROAD_SOURCE_ID,
       minzoom: DETAIL_FADE_IN,
-      filter: ["all", BIKE_LANE, ["get", "one_way"]],
+      filter: ["all", BIKE_LANE, ["==", ["get", "class"], layerClass], ["get", "one_way"]],
       layout: {
         "symbol-placement": "line",
         // no rotation: a one-way feature's geometry runs in the direction of travel
         "icon-image": "bike_caret",
         "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-        "symbol-spacing": 100,
+        // the stream on a protected lane stands in for the lane's own line, so it is drawn end to
+        // end; on a painted lane the carets only annotate a line that is already there
+        "symbol-spacing":
+          layerClass === "protected"
+            ? interpolateOnZoom(
+                CARET_SIZE_STOPS.map(([zoom, size]): [number, number] => [
+                  zoom,
+                  size * CONTINUOUS_CARET_SPACING_PIXELS,
+                ]),
+              )
+            : 100,
         // existing labels can suppress a caret, but a caret cannot suppress symbols placed later
         "icon-ignore-placement": true,
       },
       paint: { "icon-opacity": DETAIL_FADE },
     },
-  };
+  });
 
   return {
     label: "Streets",
@@ -385,13 +420,7 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = (() => {
             type: "symbol",
             source: ROAD_SOURCE_ID,
             minzoom: DETAIL_FADE_IN,
-            // a bike lane running with traffic already shows the direction, so the street cedes
-            // its caret to the lane's; with lanes hidden there is no lane caret to cede to
-            filter: [
-              "all",
-              ["get", "oneway"],
-              bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
-            ],
+            filter: ["get", "oneway"],
             layout: {
               "symbol-placement": "line",
               // no rotation: each street's geometry runs in its direction of travel
@@ -403,7 +432,9 @@ const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = (() => {
           },
         },
         // after the street carets, so a car arrow sits beneath the lane rather than over it
-        ...(bikeLanesVisible ? [...bikeLaneLayers, bikeOneWayLayer] : []),
+        ...(bikeLanesVisible
+          ? [...bikeLaneLayers, bikeOneWayLayer("protected"), bikeOneWayLayer("painted")]
+          : []),
         streetLabelLayer("roads_labels_minor", ["==", ["get", "kind"], "minor_road"]),
         streetLabelLayer("roads_labels_major", [
           "in",
