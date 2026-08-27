@@ -311,6 +311,8 @@ export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
           // the street shows a caret.
           filter: [
             "all",
+            // The bike lane features in this source have no street properties.
+            ["==", ["get", "role"], "street"],
             ["get", "oneway"],
             bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
           ],

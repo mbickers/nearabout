@@ -49,7 +49,7 @@ export const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
           ...pier,
           style: {
             ...pier.style,
-            paint: { ...pier.style.paint, "fill-color": PROTOMAPS_FLAVOR.pier },
+            paint: { ...pier.style.paint, "fill-color": PROTOMAPS_FLAVOR.earth },
           },
         },
       ],
