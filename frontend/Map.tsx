@@ -1,4 +1,9 @@
-import type { LayerSpecification, Map as MapInstance, StyleSpecification } from "maplibre-gl";
+import type {
+  LayerSpecification,
+  LngLatBounds,
+  Map as MapInstance,
+  StyleSpecification,
+} from "maplibre-gl";
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layers/shared";
@@ -16,6 +21,7 @@ export type MapStyleFragment = {
 export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) => {
   const initialZoom = 11;
   const [zoom, setZoom] = useState(initialZoom);
+  const [bounds, setBounds] = useState<LngLatBounds>();
   const styleFragmentsRef = useRef(styleFragments);
   styleFragmentsRef.current = styleFragments;
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
@@ -46,10 +52,17 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
         initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: initialZoom }}
         mapStyle={mapStyle}
         style={{ position: "fixed", inset: 0 }}
+        minZoom={9}
+        // the bounding box of the five boroughs, with a margin of 20 percent of its span on
+        // each side, which keeps the city in the frame
+        maxBounds={[-74.3709, 40.3894, -73.5884, 41.0056]}
         dragRotate={false}
         touchPitch={false}
         maxPitch={0}
-        onMove={({ viewState }) => setZoom(viewState.zoom)}
+        onMove={({ target, viewState }) => {
+          setZoom(viewState.zoom);
+          setBounds(target.getBounds());
+        }}
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
             for (const { addStyleImages } of styleFragmentsRef.current) {
@@ -58,6 +71,7 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
           });
         }}
         onLoad={({ target }) => {
+          setBounds(target.getBounds());
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
@@ -79,6 +93,13 @@ export const Map = ({ styleFragments }: { styleFragments: MapStyleFragment[] }) 
         <strong>debug</strong>
         <span>branch: {import.meta.env.VITE_GIT_BRANCH}</span>
         <span>zoom: {zoom.toFixed(2)}</span>
+        <span>
+          bbox:{" "}
+          {bounds &&
+            [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+              .map((degrees) => degrees.toFixed(4))
+              .join(", ")}
+        </span>
       </div>
     </>
   );
