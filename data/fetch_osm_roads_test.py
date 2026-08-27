@@ -125,6 +125,28 @@ class StreetFeaturesTest(unittest.TestCase):
         self.assertEqual(against["geometry"]["coordinates"][0][0], 0.01)
         self.assertTrue(against["properties"]["oneway"])
 
+    def test_a_with_traffic_bike_lane_is_flagged(self):
+        (flagged,) = street_features(
+            [
+                way(
+                    {"highway": "primary", "oneway": "yes", "cycleway:left": "track"},
+                    [(0, 40.7), (0.01, 40.7)],
+                )
+            ]
+        )
+        self.assertTrue(flagged["properties"]["bike_lane_with_traffic"])
+
+    def test_a_contraflow_lane_leaves_the_car_caret(self):
+        (kept,) = street_features(
+            [
+                way(
+                    {"highway": "residential", "oneway": "yes", "cycleway": "opposite_lane"},
+                    [(0, 40.7), (0.01, 40.7)],
+                )
+            ]
+        )
+        self.assertFalse(kept["properties"]["bike_lane_with_traffic"])
+
     def test_a_two_way_street_joins_ways_digitized_either_way_round(self):
         street = {"highway": "residential", "name": "Both Ways Street"}
         features = street_features(

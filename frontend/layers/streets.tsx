@@ -306,7 +306,14 @@ export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
           type: "symbol",
           source: ROAD_SOURCE_ID,
           minzoom: DETAIL_FADE_IN,
-          filter: ["get", "oneway"],
+          // A bike lane that goes in the direction of the traffic shows the direction of the
+          // street. Then the street does not show a caret. If the bike lanes are not visible,
+          // the street shows a caret.
+          filter: [
+            "all",
+            ["get", "oneway"],
+            bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
+          ],
           layout: {
             "symbol-placement": "line",
             // no rotation: each street's geometry runs in its direction of travel
