@@ -130,7 +130,7 @@ const clonedStreetLayer = <Style extends LayerSpecification>(
 };
 
 const streetLayer = (id: string, filter: FilterSpecification): PhysicalLayer => {
-  const layer = clonedStreetLayer<LineLayerSpecification>(id, "feature", filter);
+  const layer = clonedStreetLayer<LineLayerSpecification>(id, "street", filter);
 
   return {
     ...layer,
@@ -300,7 +300,7 @@ export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
       streetLayer("roads_highway", streetsOfKind("highway")),
       streetLayer("roads_link", ["get", "is_link"]),
       {
-        z: "feature",
+        z: "street",
         style: {
           id: "street_one_way",
           type: "symbol",

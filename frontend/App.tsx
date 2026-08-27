@@ -7,9 +7,9 @@ import { Map, type MapStyleFragment } from "./Map";
 export const App = () => {
   const [layers, setLayers] = useState<[enabled: boolean, layer: Layer][]>([
     [true, { kind: "geography", parksVisible: true }],
+    [true, { kind: "subway", servicePeriod: "regular" }],
     [true, { kind: "streets", bikeLanesVisible: true }],
     [true, { kind: "citibike_docks" }],
-    [true, { kind: "subway", servicePeriod: "regular" }],
   ]);
   const styleFragments = useMemo(
     () =>
