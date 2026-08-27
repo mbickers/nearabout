@@ -23,9 +23,9 @@ const STREET_COLOR = "#d5d5d5";
 const ROAD_SOURCE_ID = "osm_roads";
 
 const CARET_SIZE_STOPS: [zoom: number, size: number][] = [
-  [DETAIL_FADE_IN, 1.9],
-  [16, 2.5],
-  [19, 4.5],
+  [DETAIL_FADE_IN, 1.52],
+  [16, 2],
+  [19, 3.6],
 ];
 
 // avoids resampling blur at the sizes CARET_SIZE_STOPS reaches
