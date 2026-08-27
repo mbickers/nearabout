@@ -317,7 +317,6 @@ export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
           paint: { "icon-opacity": DETAIL_FADE },
         },
       },
-      // after the street carets, so a car arrow sits beneath the lane rather than over it
       ...(bikeLanesVisible
         ? [...bikeLaneLayers, protectedCaretStreamLayer, paintedBikeOneWayLayer]
         : []),

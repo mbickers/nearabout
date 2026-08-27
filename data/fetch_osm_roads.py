@@ -146,8 +146,7 @@ def street_features(elements):
     """One line per contiguous run of street sharing every styling property.
 
     A one-way street is emitted in its direction of travel, so the caret layer needs no per-feature
-    rotation, and carries whether a bike lane already runs the same way — the style drops the car
-    caret there and lets the bike lane's own caret show the direction.
+    rotation.
     """
     lines_by_style: dict[tuple, list] = {}
     for element in elements:
@@ -156,11 +155,7 @@ def street_features(elements):
             continue
 
         directions = roadway_directions(element["tags"])
-        one_way = directions != BOTH_WAYS
-        properties["oneway"] = one_way
-        properties["bike_lane_with_traffic"] = one_way and next(iter(directions)) in travel_options(
-            element["tags"]
-        )
+        properties["oneway"] = directions != BOTH_WAYS
 
         coordinates = [[point["lon"], point["lat"]] for point in element["geometry"]]
         if directions == frozenset({BACKWARD}):
