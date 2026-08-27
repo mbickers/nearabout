@@ -3,6 +3,7 @@ name = "nearabout-data"
 version = "0.0.0"
 requires-python = ">=3.13"
 dependencies = [
+    "polars>=1.32.0",
     "shapely>=2.1.1",
 ]
 

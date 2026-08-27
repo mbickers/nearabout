@@ -1,6 +1,7 @@
-import type { CircleLayerSpecification } from "maplibre-gl";
+import type { CircleLayerSpecification, GeoJSONSource } from "maplibre-gl";
 import type { MapContribution } from "../Map";
 import { SERVICE_PERIODS, type ServicePeriod, type SubwayState } from "../map_state";
+import { buildSubwayTrackGraph, loadSubwayTrackGraph } from "../subway_offsets";
 import {
   circleLegend,
   DETAIL_FADE,
@@ -112,6 +113,10 @@ const subwayMapContribution = ({ servicePeriod }: SubwayState): MapContribution 
   return {
     sources: {
       subway_routes: { type: "geojson", data: "/data/subway_routes.geojson" },
+      subway_track_graph: {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      },
       subway_stations: { type: "geojson", data: "/data/subway_stations.geojson" },
       subway_entrances: { type: "geojson", data: "/data/subway_entrances.geojson" },
       subway_station_routes: { type: "geojson", data: "/data/subway_station_routes.geojson" },
@@ -218,7 +223,63 @@ const subwayMapContribution = ({ servicePeriod }: SubwayState): MapContribution 
           },
         },
       },
+      {
+        z: "debug",
+        style: {
+          id: "subway_track_graph_edges",
+          type: "line",
+          source: "subway_track_graph",
+          filter: ["==", ["get", "kind"], "edge"],
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": "#ff00c8",
+            "line-width": 3,
+            "line-opacity": 0.8,
+          },
+        },
+      },
+      {
+        z: "debug",
+        style: {
+          id: "subway_track_graph_vertices",
+          type: "circle",
+          source: "subway_track_graph",
+          filter: ["==", ["get", "kind"], "vertex"],
+          paint: {
+            "circle-radius": 4,
+            "circle-color": "#ffffff",
+            "circle-stroke-color": "#000000",
+            "circle-stroke-width": 2,
+          },
+        },
+      },
+      {
+        z: "debug",
+        style: {
+          id: "subway_track_graph_labels",
+          type: "symbol",
+          source: "subway_track_graph",
+          filter: ["==", ["get", "kind"], "vertex"],
+          layout: {
+            "text-field": ["get", "label"],
+            "text-font": [MAP_FONT],
+            "text-size": 11,
+            "text-offset": [0, 0.7],
+            "text-anchor": "top",
+            "text-allow-overlap": true,
+          },
+          paint: {
+            "text-color": "#000000",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 2,
+          },
+        },
+      },
     ],
+    onLoad: async (map) => {
+      const graph = buildSubwayTrackGraph(await loadSubwayTrackGraph());
+      (map.getSource("subway_track_graph") as GeoJSONSource).setData(graph);
+    },
     addStyleImages: async (map) => {
       // canvas silently falls back to a system face for a webfont it has not already loaded
       await document.fonts.load(`1em "${MAP_FONT}"`);

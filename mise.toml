@@ -50,6 +50,25 @@ outputs = [
     "public/data/subway_stations.geojson",
 ]
 
+[tasks."data:subway_gtfs"]
+run = "uv run python -m data.fetch_subway_gtfs"
+sources = ["data/fetch_subway_gtfs.py"]
+outputs = ["data/gtfs"]
+
+[tasks."data:subway_track_graph"]
+run = "uv run python -m data.build_subway_track_graph"
+depends = ["data:subway_gtfs"]
+sources = [
+    "data/build_subway_track_graph.py",
+    "data/gtfs_types.py",
+    "data/gtfs/routes.txt",
+    "data/gtfs/trips.txt",
+    "data/gtfs/stops.txt",
+    "data/gtfs/stop_times.txt",
+    "data/gtfs/shapes.txt",
+]
+outputs = ["public/data/subway_track_graph.json"]
+
 [tasks."data:subway_routes"]
 run = "uv run python -m data.fetch_subway_route_lines"
 sources = ["data/fetch_subway_route_lines.py"]
@@ -71,6 +90,7 @@ depends = [
     "data:map_fonts",
     "data:roads",
     "data:subway_geojson",
+    "data:subway_track_graph",
     "data:subway_routes",
     "data:subway_stations",
 ]

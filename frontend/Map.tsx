@@ -59,6 +59,7 @@ export type MapContribution = {
   markerElements?: ReactElement[];
   viewRequest?: MapViewRequest;
   addStyleImages?: (map: MapInstance) => void | Promise<void>;
+  onLoad?: (map: MapInstance) => void | Promise<void>;
 };
 
 const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
@@ -179,6 +180,7 @@ export const Map = ({
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
+          for (const contribution of contributionsRef.current) void contribution.onLoad?.(target);
         }}
       >
         {contributions.flatMap(({ markerElements = [] }) => markerElements)}

@@ -3,6 +3,7 @@ dist/
 
 public/data/
 data/*.osm.pbf*
+data/gtfs/
 
 __pycache__/
 .ruff_cache/
