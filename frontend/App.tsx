@@ -1,11 +1,25 @@
-import { useMemo, useState } from "react";
+import type { LngLatBounds, Map as MapInstance } from "maplibre-gl";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { LayerControls } from "./LayerControls";
 import type { Layer } from "./layer";
 import { LAYER_DEFINITIONS } from "./layers";
-import { Map, type MapMarker, type MapStyleFragment } from "./Map";
+import {
+  fitMapViewToPoints,
+  Map,
+  type MapMarker,
+  type MapPoint,
+  type MapStyleFragment,
+} from "./Map";
 
 export const App = () => {
   const [markerPreview, setMarkerPreview] = useState<MapMarker[]>();
+  const [visibleMapBounds, setVisibleMapBounds] = useState<LngLatBounds>();
+  const mapRef = useRef<MapInstance>(null);
+  const fitMapToPoints = useCallback(
+    (options: { points: MapPoint[]; paddingFraction: number; maxZoom: number }) =>
+      mapRef.current && fitMapViewToPoints(mapRef.current, options),
+    [],
+  );
   const [layers, setLayers] = useState<[enabled: boolean, layer: Layer][]>([
     [true, { kind: "geography", parksVisible: true }],
     [true, { kind: "subway", servicePeriod: "regular" }],
@@ -29,11 +43,20 @@ export const App = () => {
 
   return (
     <>
-      <Map styleFragments={styleFragments} markerPreview={markerPreview} />
+      <Map
+        styleFragments={styleFragments}
+        markerPreview={markerPreview}
+        onMapLoad={(map) => {
+          mapRef.current = map;
+        }}
+        onSettledBoundsChange={setVisibleMapBounds}
+      />
       <LayerControls
         layers={layers}
+        visibleMapBounds={visibleMapBounds}
         onChange={setLayers}
         onMarkerPreviewChange={setMarkerPreview}
+        fitMapToPoints={fitMapToPoints}
       />
     </>
   );

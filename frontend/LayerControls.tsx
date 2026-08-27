@@ -1,17 +1,26 @@
+import type { LngLatBounds } from "maplibre-gl";
 import type { ComponentType } from "react";
 import type { Layer } from "./layer";
 import { LAYER_DEFINITIONS } from "./layers";
 import { MAP_FONT } from "./layers/shared";
-import type { MapMarker } from "./Map";
+import type { MapMarker, MapPoint } from "./Map";
 
 export const LayerControls = ({
   layers,
+  visibleMapBounds,
   onChange,
   onMarkerPreviewChange,
+  fitMapToPoints,
 }: {
   layers: [enabled: boolean, layer: Layer][];
+  visibleMapBounds?: LngLatBounds;
   onChange: (layers: [enabled: boolean, layer: Layer][]) => void;
   onMarkerPreviewChange: (markers?: MapMarker[]) => void;
+  fitMapToPoints: (options: {
+    points: MapPoint[];
+    paddingFraction: number;
+    maxZoom: number;
+  }) => void;
 }) => (
   <div
     style={{
@@ -33,8 +42,14 @@ export const LayerControls = ({
         | ComponentType<{
             layer: Layer;
             disabled: boolean;
+            visibleMapBounds?: LngLatBounds;
             onChange: (layer: Layer) => void;
             onMarkerPreviewChange: (markers?: MapMarker[]) => void;
+            fitMapToPoints: (options: {
+              points: MapPoint[];
+              paddingFraction: number;
+              maxZoom: number;
+            }) => void;
           }>
         | undefined;
 
@@ -61,7 +76,9 @@ export const LayerControls = ({
               <Controls
                 layer={layer}
                 disabled={!enabled}
+                visibleMapBounds={visibleMapBounds}
                 onMarkerPreviewChange={onMarkerPreviewChange}
+                fitMapToPoints={fitMapToPoints}
                 onChange={(changedLayer) =>
                   onChange(
                     layers.map(([currentEnabled, currentLayer]): [boolean, Layer] => [

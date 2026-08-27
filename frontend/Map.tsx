@@ -1,23 +1,53 @@
-import type {
-  LayerSpecification,
+import {
+  type LayerSpecification,
   LngLatBounds,
-  Map as MapInstance,
-  StyleSpecification,
+  type Map as MapInstance,
+  type StyleSpecification,
 } from "maplibre-gl";
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap, { Marker } from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layers/shared";
+import { NYC_BOUNDS } from "./map_bounds";
 
 export type LayerZ = "background" | "street" | "feature" | "label" | "debug";
 
 export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 
-export type MapMarker = {
+export type MapPoint = { longitude: number; latitude: number };
+
+export type MapMarker = MapPoint & {
   id: string;
   label: string;
-  longitude: number;
-  latitude: number;
   onClick?: () => void;
+};
+
+export const fitMapViewToPoints = (
+  map: MapInstance,
+  {
+    points,
+    paddingFraction,
+    maxZoom,
+  }: { points: MapPoint[]; paddingFraction: number; maxZoom: number },
+) => {
+  if (points.length === 0) return;
+
+  const { width, height } = map.getContainer().getBoundingClientRect();
+  map.fitBounds(
+    points.reduce(
+      (extended, { longitude, latitude }) => extended.extend([longitude, latitude]),
+      new LngLatBounds(),
+    ),
+    {
+      duration: 0,
+      maxZoom,
+      padding: {
+        top: height * paddingFraction,
+        bottom: height * paddingFraction,
+        left: width * paddingFraction,
+        right: width * paddingFraction,
+      },
+    },
+  );
 };
 
 export type MapStyleFragment = {
@@ -30,9 +60,13 @@ export type MapStyleFragment = {
 export const Map = ({
   styleFragments,
   markerPreview,
+  onMapLoad,
+  onSettledBoundsChange,
 }: {
   styleFragments: MapStyleFragment[];
   markerPreview?: MapMarker[];
+  onMapLoad: (map: MapInstance) => void;
+  onSettledBoundsChange: (bounds: LngLatBounds) => void;
 }) => {
   const initialZoom = 11;
   const [zoom, setZoom] = useState(initialZoom);
@@ -70,7 +104,12 @@ export const Map = ({
         minZoom={9}
         // the bounding box of the five boroughs, with a margin of 20 percent of its span on
         // each side, which keeps the city in the frame
-        maxBounds={[-74.3709, 40.3894, -73.5884, 41.0056]}
+        maxBounds={[
+          NYC_BOUNDS.west - (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
+          NYC_BOUNDS.south - (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
+          NYC_BOUNDS.east + (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
+          NYC_BOUNDS.north + (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
+        ]}
         dragRotate={false}
         touchPitch={false}
         maxPitch={0}
@@ -79,6 +118,9 @@ export const Map = ({
           setZoom(viewState.zoom);
           setBounds(target.getBounds());
         }}
+        onMoveEnd={({ target, originalEvent }) =>
+          originalEvent && onSettledBoundsChange(target.getBounds())
+        }
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
             for (const { addStyleImages } of styleFragmentsRef.current) {
@@ -88,6 +130,8 @@ export const Map = ({
         }}
         onLoad={({ target }) => {
           setBounds(target.getBounds());
+          onSettledBoundsChange(target.getBounds());
+          onMapLoad(target);
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
@@ -99,8 +143,22 @@ export const Map = ({
               <button
                 type="button"
                 aria-label={onClick ? `Select ${label}` : undefined}
-                onMouseDown={onClick ? (event) => event.preventDefault() : undefined}
-                onClick={onClick}
+                onMouseDown={
+                  onClick
+                    ? (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }
+                    : undefined
+                }
+                onClick={
+                  onClick
+                    ? (event) => {
+                        event.stopPropagation();
+                        onClick();
+                      }
+                    : undefined
+                }
                 style={{
                   display: "block",
                   boxSizing: "border-box",
