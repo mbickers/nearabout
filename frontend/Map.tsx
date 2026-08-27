@@ -1,7 +1,7 @@
 import type { LayerSpecification, Map as MapInstance, StyleSpecification } from "maplibre-gl";
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap from "react-map-gl/maplibre";
-import { MAP_FONT } from "./layer_definitions";
+import { MAP_FONT } from "./layers/shared";
 
 export type LayerZ = "background" | "feature" | "label" | "debug";
 

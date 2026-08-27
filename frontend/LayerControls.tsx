@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS, MAP_FONT } from "./layer_definitions";
+import { LAYER_DEFINITIONS } from "./layers";
+import { MAP_FONT } from "./layers/shared";
 
 export const LayerControls = ({
   layers,

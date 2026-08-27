@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { LayerControls } from "./LayerControls";
 import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS } from "./layer_definitions";
+import { LAYER_DEFINITIONS } from "./layers";
 import { Map, type MapStyleFragment } from "./Map";
 
 export const App = () => {
