@@ -1,5 +1,5 @@
 import type { Layer } from "../layer";
-import type { MapMarker, MapStyleFragment } from "../Map";
+import type { MapContribution, MapContributionOverride } from "../Map";
 import { citibikeDocksDefinition } from "./citibike_docks";
 import { geographyDefinition } from "./geography";
 import { pointsOfInterestDefinition } from "./points_of_interest";
@@ -17,18 +17,18 @@ export const LAYER_DEFINITIONS: {
   points_of_interest: pointsOfInterestDefinition,
 };
 
-export type LayerMarkerOverrides = Partial<Record<LayerKind, MapMarker[]>>;
+export type LayerContributionOverrides = Partial<Record<LayerKind, MapContributionOverride>>;
 
-export const mapStyleFragmentsForLayers = (
+export const mapContributionsForLayers = (
   layers: [enabled: boolean, layer: Layer][],
-  markerOverrides: LayerMarkerOverrides,
-): MapStyleFragment[] =>
+  overrides: LayerContributionOverrides,
+): MapContribution[] =>
   layers.flatMap(([enabled, layer]) => {
     if (!enabled) return [];
 
-    const fragment = (
-      LAYER_DEFINITIONS[layer.kind].mapStyleFragment as (currentLayer: Layer) => MapStyleFragment
+    const contribution = (
+      LAYER_DEFINITIONS[layer.kind].mapContribution as (currentLayer: Layer) => MapContribution
     )(layer);
-    const markerOverride = markerOverrides[layer.kind];
-    return [markerOverride === undefined ? fragment : { ...fragment, markers: markerOverride }];
+    const override = overrides[layer.kind];
+    return [override === undefined ? contribution : { ...contribution, ...override }];
   });

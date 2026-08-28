@@ -9,7 +9,7 @@ import {
 
 export const geographyDefinition: LayerDefinition<LayerOfKind<"geography">> = {
   label: "Geography",
-  mapStyleFragment: ({ parksVisible }) => {
+  mapContribution: ({ parksVisible }) => {
     const park = protomapsLayer<FillLayerSpecification>("landuse_park", "background");
     const pier = protomapsLayer<FillLayerSpecification>("landuse_pier", "background");
 

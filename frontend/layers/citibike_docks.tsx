@@ -20,7 +20,7 @@ const dockMarkerPaint = {
 
 export const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = {
   label: "Citi Bike docks",
-  mapStyleFragment: () => ({
+  mapContribution: () => ({
     sources: {
       citibike_docks: {
         type: "geojson",

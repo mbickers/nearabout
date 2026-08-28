@@ -6,7 +6,7 @@ import type {
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
 import type { Layer } from "../layer";
-import type { LayerZ, MapMarker, MapPoint, MapStyleFragment } from "../Map";
+import type { LayerZ, MapContribution, MapContributionOverride } from "../Map";
 import type { GeographicBounds } from "../map_bounds";
 
 const SOURCE_ID = "protomaps";
@@ -58,7 +58,7 @@ export const protomapsLayer = <Style extends LayerSpecification = LayerSpecifica
   style: PROTOMAPS_LAYERS.find((layer) => layer.id === id)! as Style,
 });
 
-export const PROTOMAPS_SOURCES: MapStyleFragment["sources"] = {
+export const PROTOMAPS_SOURCES: MapContribution["sources"] = {
   [SOURCE_ID]: {
     type: "vector",
     url: "pmtiles:///data/nyc.pmtiles",
@@ -77,17 +77,12 @@ export type LayerComponentProps<CurrentLayer extends Layer> = {
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
   onChange: (layer: CurrentLayer) => void;
-  onMarkersChange: (markers?: MapMarker[]) => void;
-  fitMapToPoints: (options: {
-    points: MapPoint[];
-    paddingFraction: number;
-    maxZoom: number;
-  }) => void;
+  onMapContributionChange: (override?: MapContributionOverride) => void;
 };
 
 export type LayerDefinition<CurrentLayer extends Layer> = {
   label: string;
-  mapStyleFragment: (layer: CurrentLayer) => MapStyleFragment;
+  mapContribution: (layer: CurrentLayer) => MapContribution;
   Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
 };
 

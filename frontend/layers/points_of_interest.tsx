@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Marker } from "react-map-gl/maplibre";
 import { searchNominatim } from "./nominatim";
 import {
   completedEntireCitySearch,
@@ -35,26 +36,72 @@ const normalizePointOfInterestRows = (rows: PointOfInterestRow[], editedRowId?: 
   return [...nonemptyRows, emptyRow];
 };
 
+const PointOfInterestMarker = ({
+  label,
+  longitude,
+  latitude,
+  onClick,
+}: LocationSearchResult & { onClick?: () => void }) => (
+  <Marker longitude={longitude} latitude={latitude} anchor="center">
+    <button
+      type="button"
+      aria-label={onClick ? `Select ${label}` : undefined}
+      // Keep focus on the address input until result selection updates the search state. The
+      // selection handler then deliberately removes focus.
+      onMouseDown={
+        onClick
+          ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          : undefined
+      }
+      onClick={
+        onClick
+          ? (event) => {
+              event.stopPropagation();
+              onClick();
+            }
+          : undefined
+      }
+      style={{
+        display: "block",
+        boxSizing: "border-box",
+        maxWidth: 160,
+        padding: "3px 5px",
+        border: "1px solid #000000",
+        borderRadius: 0,
+        background: "#ffffff",
+        color: "#000000",
+        font: "13px sans-serif",
+        textAlign: "center",
+        overflowWrap: "anywhere",
+        pointerEvents: onClick ? "auto" : "none",
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      {label}
+    </button>
+  </Marker>
+);
+
 const PointsOfInterestControls = ({
   layer,
   disabled,
   visibleMapBounds,
   entireSearchBounds,
   onChange,
-  onMarkersChange,
-  fitMapToPoints,
+  onMapContributionChange,
 }: LayerComponentProps<LayerOfKind<"points_of_interest">>) => {
+  const [viewRequestSourceId] = useState(() => crypto.randomUUID());
   const nextSearchRequestId = useRef(0);
-  const lastFittedSearchRequestId = useRef<number>(undefined);
   const lastEmittedItems = useRef<string>(undefined);
   const onChangeRef = useRef(onChange);
-  const onMarkersChangeRef = useRef(onMarkersChange);
+  const onMapContributionChangeRef = useRef(onMapContributionChange);
   const visibleMapBoundsRef = useRef(visibleMapBounds);
-  const fitMapToPointsRef = useRef(fitMapToPoints);
   onChangeRef.current = onChange;
-  onMarkersChangeRef.current = onMarkersChange;
+  onMapContributionChangeRef.current = onMapContributionChange;
   visibleMapBoundsRef.current = visibleMapBounds;
-  fitMapToPointsRef.current = fitMapToPoints;
   const [rows, setRows] = useState<PointOfInterestRow[]>(() =>
     normalizePointOfInterestRows(
       layer.items.map((item) => ({
@@ -122,24 +169,45 @@ const PointsOfInterestControls = ({
 
   useEffect(() => {
     if (disabled) {
-      onMarkersChangeRef.current(undefined);
+      onMapContributionChangeRef.current(undefined);
       return;
     }
 
     const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
     const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
-    onMarkersChangeRef.current(
-      activeSearchRow && results
-        ? results.map((result, resultIndex) => ({
-            id: `${activeSearchRow.id}:${result.latitude},${result.longitude}:${resultIndex}`,
-            label: result.label,
-            longitude: result.longitude,
-            latitude: result.latitude,
-            onClick: () => selectSearchResult(activeSearchRow.id, result),
-          }))
-        : undefined,
-    );
-  }, [rows, disabled, selectSearchResult]);
+    const completedSearch = rows
+      .map(({ search }) => completedEntireCitySearch(search.state))
+      .filter((search): search is NonNullable<typeof search> => search !== undefined)
+      .sort((first, second) => second.requestId - first.requestId)[0];
+    if (!activeSearchRow && !completedSearch) {
+      onMapContributionChangeRef.current(undefined);
+      return;
+    }
+
+    onMapContributionChangeRef.current({
+      ...(activeSearchRow && results
+        ? {
+            markerElements: results.map((result) => (
+              <PointOfInterestMarker
+                key={`${activeSearchRow.id}:${result.latitude},${result.longitude}:${result.label}`}
+                {...result}
+                onClick={() => selectSearchResult(activeSearchRow.id, result)}
+              />
+            )),
+          }
+        : {}),
+      ...(completedSearch
+        ? {
+            viewRequest: {
+              id: `${viewRequestSourceId}:${completedSearch.requestId}`,
+              points: completedSearch.results,
+              paddingFraction: 0.1,
+              maxZoom: 14,
+            },
+          }
+        : {}),
+    });
+  }, [rows, disabled, selectSearchResult, viewRequestSourceId]);
 
   const runLocationSearch = useCallback(
     async (rowId: string, query: string, scope: LocationSearchScope, requestId: number) => {
@@ -185,23 +253,6 @@ const PointsOfInterestControls = ({
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [rows, visibleMapBounds, runLocationSearch, transitionRowSearch]);
-
-  useEffect(() => {
-    const completedSearch = rows
-      .map(({ search }) => completedEntireCitySearch(search.state))
-      .filter((search): search is NonNullable<typeof search> => search !== undefined)
-      .sort((first, second) => second.requestId - first.requestId)[0];
-    if (!completedSearch || completedSearch.requestId <= (lastFittedSearchRequestId.current ?? 0)) {
-      return;
-    }
-
-    lastFittedSearchRequestId.current = completedSearch.requestId;
-    fitMapToPointsRef.current({
-      points: completedSearch.results,
-      paddingFraction: 0.1,
-      maxZoom: 14,
-    });
-  }, [rows]);
 
   return (
     <div style={{ display: "grid", gap: 6, width: 260 }}>
@@ -343,6 +394,12 @@ const PointsOfInterestControls = ({
 
 export const pointsOfInterestDefinition: LayerDefinition<LayerOfKind<"points_of_interest">> = {
   label: "Points of interest",
-  mapStyleFragment: ({ items }) => ({ sources: {}, physicalLayers: [], markers: items }),
+  mapContribution: ({ items }) => ({
+    sources: {},
+    physicalLayers: [],
+    markerElements: items.map(({ id, label, longitude, latitude }) => (
+      <PointOfInterestMarker key={id} label={label} longitude={longitude} latitude={latitude} />
+    )),
+  }),
   Controls: PointsOfInterestControls,
 };

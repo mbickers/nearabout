@@ -107,7 +107,7 @@ const entranceMarkerPaint = {
 
 export const subwayDefinition: LayerDefinition<LayerOfKind<"subway">> = {
   label: "Subway",
-  mapStyleFragment: ({ servicePeriod }) => {
+  mapContribution: ({ servicePeriod }) => {
     const stationDetailZoom = DETAIL_FADE_IN;
 
     return {

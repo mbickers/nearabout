@@ -4,8 +4,8 @@ import {
   type Map as MapInstance,
   type StyleSpecification,
 } from "maplibre-gl";
-import { useMemo, useRef, useState } from "react";
-import MapLibreMap, { Marker } from "react-map-gl/maplibre";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
+import MapLibreMap from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layers/shared";
 import type { GeographicBounds } from "./map_bounds";
 
@@ -15,13 +15,14 @@ export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 
 export type MapPoint = { longitude: number; latitude: number };
 
-export type MapMarker = MapPoint & {
+export type MapViewRequest = {
   id: string;
-  label: string;
-  onClick?: () => void;
+  points: MapPoint[];
+  paddingFraction: number;
+  maxZoom: number;
 };
 
-export const fitMapViewToPoints = (
+const fitMapViewToPoints = (
   map: MapInstance,
   {
     points,
@@ -50,12 +51,17 @@ export const fitMapViewToPoints = (
   );
 };
 
-export type MapStyleFragment = {
+export type MapContribution = {
   sources: StyleSpecification["sources"];
   physicalLayers: PhysicalLayer[];
-  markers?: MapMarker[];
+  markerElements?: ReactElement[];
+  viewRequest?: MapViewRequest;
   addStyleImages?: (map: MapInstance) => void | Promise<void>;
 };
+
+export type MapContributionOverride = Partial<
+  Pick<MapContribution, "markerElements" | "viewRequest">
+>;
 
 const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
   const bounds = map.getBounds();
@@ -68,24 +74,24 @@ const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
 };
 
 export const Map = ({
-  styleFragments,
+  contributions,
   initialViewState,
   minZoom,
   movementBounds,
-  onMapLoad,
   onSettledBoundsChange,
 }: {
-  styleFragments: MapStyleFragment[];
+  contributions: MapContribution[];
   initialViewState: MapPoint & { zoom: number };
   minZoom: number;
   movementBounds: [west: number, south: number, east: number, north: number];
-  onMapLoad: (map: MapInstance) => void;
   onSettledBoundsChange: (bounds: GeographicBounds) => void;
 }) => {
+  const [map, setMap] = useState<MapInstance>();
   const [zoom, setZoom] = useState(initialViewState.zoom);
   const [bounds, setBounds] = useState<GeographicBounds>();
-  const styleFragmentsRef = useRef(styleFragments);
-  styleFragmentsRef.current = styleFragments;
+  const appliedViewRequestIds = useRef(new Set<string>());
+  const contributionsRef = useRef(contributions);
+  contributionsRef.current = contributions;
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
   // would otherwise trigger
   const mapStyle = useMemo(() => {
@@ -100,13 +106,24 @@ export const Map = ({
     return {
       version: 8 as const,
       glyphs: "/data/fonts/{fontstack}/{range}.pbf",
-      sources: Object.assign({}, ...styleFragments.map(({ sources }) => sources)),
-      layers: styleFragments
+      sources: Object.assign({}, ...contributions.map(({ sources }) => sources)),
+      layers: contributions
         .flatMap(({ physicalLayers }) => physicalLayers)
         .sort((first, second) => zOrder[first.z] - zOrder[second.z])
         .map(({ style }) => style),
     };
-  }, [styleFragments]);
+  }, [contributions]);
+
+  useEffect(() => {
+    if (!map) return;
+
+    for (const { viewRequest } of contributions) {
+      if (!viewRequest || appliedViewRequestIds.current.has(viewRequest.id)) continue;
+
+      appliedViewRequestIds.current.add(viewRequest.id);
+      fitMapViewToPoints(map, viewRequest);
+    }
+  }, [map, contributions]);
 
   return (
     <>
@@ -130,7 +147,7 @@ export const Map = ({
         }
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
-            for (const { addStyleImages } of styleFragmentsRef.current) {
+            for (const { addStyleImages } of contributionsRef.current) {
               await addStyleImages?.(target);
             }
           });
@@ -138,57 +155,13 @@ export const Map = ({
         onLoad={({ target }) => {
           setBounds(geographicBoundsFor(target));
           onSettledBoundsChange(geographicBoundsFor(target));
-          onMapLoad(target);
+          setMap(target);
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
           target.keyboard.disableRotation();
         }}
       >
-        {styleFragments
-          .flatMap(({ markers = [] }) => markers)
-          .map(({ id, label, longitude, latitude, onClick }) => (
-            <Marker key={id} longitude={longitude} latitude={latitude} anchor="center">
-              <button
-                type="button"
-                aria-label={onClick ? `Select ${label}` : undefined}
-                // Let result selection update the search state before it deliberately blurs
-                // the address input.
-                onMouseDown={
-                  onClick
-                    ? (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }
-                    : undefined
-                }
-                onClick={
-                  onClick
-                    ? (event) => {
-                        event.stopPropagation();
-                        onClick();
-                      }
-                    : undefined
-                }
-                style={{
-                  display: "block",
-                  boxSizing: "border-box",
-                  maxWidth: 160,
-                  padding: "3px 5px",
-                  border: "1px solid #000000",
-                  borderRadius: 0,
-                  background: "#ffffff",
-                  color: "#000000",
-                  font: "13px sans-serif",
-                  textAlign: "center",
-                  overflowWrap: "anywhere",
-                  pointerEvents: onClick ? "auto" : "none",
-                  cursor: onClick ? "pointer" : "default",
-                }}
-              >
-                {label}
-              </button>
-            </Marker>
-          ))}
+        {contributions.flatMap(({ markerElements = [] }) => markerElements)}
       </MapLibreMap>
       <div
         style={{

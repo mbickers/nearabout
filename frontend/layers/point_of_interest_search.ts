@@ -118,8 +118,15 @@ export const transitionLocationSearch = (
   event: LocationSearchEvent,
 ): PointOfInterestSearch => {
   switch (event.type) {
-    case "query_changed":
-      return { query: event.query, state: { status: "idle" } };
+    case "query_changed": {
+      const changedSearch: PointOfInterestSearch = {
+        query: event.query,
+        state: { status: "idle" },
+      };
+      return event.query.trim().length >= 3
+        ? queueSearch(changedSearch, "visible_map", false)
+        : changedSearch;
+    }
     case "map_moved":
       return search.state.status === "selected" || search.query.trim().length < 3
         ? search

@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import type { Layer } from "./layer";
 import { LAYER_DEFINITIONS } from "./layers";
 import { type LayerComponentProps, MAP_FONT } from "./layers/shared";
-import type { MapMarker, MapPoint } from "./Map";
+import type { MapContributionOverride } from "./Map";
 import type { GeographicBounds } from "./map_bounds";
 
 export const LayerControls = ({
@@ -10,19 +10,16 @@ export const LayerControls = ({
   visibleMapBounds,
   entireSearchBounds,
   onChange,
-  onMarkerOverrideChange,
-  fitMapToPoints,
+  onContributionOverrideChange,
 }: {
   layers: [enabled: boolean, layer: Layer][];
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
   onChange: (layers: [enabled: boolean, layer: Layer][]) => void;
-  onMarkerOverrideChange: (layerKind: Layer["kind"], markers?: MapMarker[]) => void;
-  fitMapToPoints: (options: {
-    points: MapPoint[];
-    paddingFraction: number;
-    maxZoom: number;
-  }) => void;
+  onContributionOverrideChange: (
+    layerKind: Layer["kind"],
+    override?: MapContributionOverride,
+  ) => void;
 }) => (
   <div
     style={{
@@ -67,8 +64,9 @@ export const LayerControls = ({
                 disabled={!enabled}
                 visibleMapBounds={visibleMapBounds}
                 entireSearchBounds={entireSearchBounds}
-                onMarkersChange={(markers) => onMarkerOverrideChange(layer.kind, markers)}
-                fitMapToPoints={fitMapToPoints}
+                onMapContributionChange={(override) =>
+                  onContributionOverrideChange(layer.kind, override)
+                }
                 onChange={(changedLayer) =>
                   onChange(
                     layers.map(([currentEnabled, currentLayer]): [boolean, Layer] => [
