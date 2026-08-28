@@ -2,18 +2,12 @@ import type { Map as MapInstance } from "maplibre-gl";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LayerControls } from "./LayerControls";
 import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS } from "./layers";
-import {
-  fitMapViewToPoints,
-  Map,
-  type MapMarker,
-  type MapPoint,
-  type MapStyleFragment,
-} from "./Map";
-import { type GeographicBounds, NYC_BOUNDS } from "./map_bounds";
+import { type LayerMarkerOverrides, mapStyleFragmentsForLayers } from "./layers";
+import { fitMapViewToPoints, Map, type MapPoint } from "./Map";
+import { type GeographicBounds, movementBoundsWithMargin, NYC_BOUNDS } from "./map_bounds";
 
 export const App = () => {
-  const [markerPreview, setMarkerPreview] = useState<MapMarker[]>();
+  const [layerMarkerOverrides, setLayerMarkerOverrides] = useState<LayerMarkerOverrides>({});
   const [visibleMapBounds, setVisibleMapBounds] = useState<GeographicBounds>();
   const mapRef = useRef<MapInstance>(null);
   const fitMapToPoints = useCallback(
@@ -29,31 +23,17 @@ export const App = () => {
     [true, { kind: "points_of_interest", items: [] }],
   ]);
   const styleFragments = useMemo(
-    () =>
-      layers
-        .filter(([enabled]) => enabled)
-        .map(([, layer]) =>
-          (
-            LAYER_DEFINITIONS[layer.kind].mapStyleFragment as (
-              currentLayer: Layer,
-            ) => MapStyleFragment
-          )(layer),
-        ),
-    [layers],
+    () => mapStyleFragmentsForLayers(layers, layerMarkerOverrides),
+    [layers, layerMarkerOverrides],
   );
 
   return (
     <>
       <Map
         styleFragments={styleFragments}
-        markerPreview={markerPreview}
         initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: 11 }}
-        movementBounds={[
-          NYC_BOUNDS.west - (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
-          NYC_BOUNDS.south - (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
-          NYC_BOUNDS.east + (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
-          NYC_BOUNDS.north + (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
-        ]}
+        minZoom={9}
+        movementBounds={movementBoundsWithMargin(NYC_BOUNDS, 0.2)}
         onMapLoad={(map) => {
           mapRef.current = map;
         }}
@@ -64,7 +44,19 @@ export const App = () => {
         visibleMapBounds={visibleMapBounds}
         entireSearchBounds={NYC_BOUNDS}
         onChange={setLayers}
-        onMarkerPreviewChange={setMarkerPreview}
+        onMarkerOverrideChange={(layerKind, markers) =>
+          setLayerMarkerOverrides((currentOverrides) => {
+            if (markers === undefined) {
+              if (currentOverrides[layerKind] === undefined) return currentOverrides;
+
+              const { [layerKind]: _, ...remainingOverrides } = currentOverrides;
+              return remainingOverrides;
+            }
+            return currentOverrides[layerKind] === markers
+              ? currentOverrides
+              : { ...currentOverrides, [layerKind]: markers };
+          })
+        }
         fitMapToPoints={fitMapToPoints}
       />
     </>

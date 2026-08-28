@@ -41,18 +41,18 @@ const PointsOfInterestControls = ({
   visibleMapBounds,
   entireSearchBounds,
   onChange,
-  onMarkerPreviewChange,
+  onMarkersChange,
   fitMapToPoints,
 }: LayerComponentProps<LayerOfKind<"points_of_interest">>) => {
   const nextSearchRequestId = useRef(0);
   const lastFittedSearchRequestId = useRef<number>(undefined);
   const lastEmittedItems = useRef<string>(undefined);
   const onChangeRef = useRef(onChange);
-  const onMarkerPreviewChangeRef = useRef(onMarkerPreviewChange);
+  const onMarkersChangeRef = useRef(onMarkersChange);
   const visibleMapBoundsRef = useRef(visibleMapBounds);
   const fitMapToPointsRef = useRef(fitMapToPoints);
   onChangeRef.current = onChange;
-  onMarkerPreviewChangeRef.current = onMarkerPreviewChange;
+  onMarkersChangeRef.current = onMarkersChange;
   visibleMapBoundsRef.current = visibleMapBounds;
   fitMapToPointsRef.current = fitMapToPoints;
   const [rows, setRows] = useState<PointOfInterestRow[]>(() =>
@@ -122,13 +122,13 @@ const PointsOfInterestControls = ({
 
   useEffect(() => {
     if (disabled) {
-      onMarkerPreviewChangeRef.current(undefined);
+      onMarkersChangeRef.current(undefined);
       return;
     }
 
     const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
     const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
-    onMarkerPreviewChangeRef.current(
+    onMarkersChangeRef.current(
       activeSearchRow && results
         ? results.map((result, resultIndex) => ({
             id: `${activeSearchRow.id}:${result.latitude},${result.longitude}:${resultIndex}`,

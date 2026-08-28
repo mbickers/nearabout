@@ -77,7 +77,7 @@ export type LayerComponentProps<CurrentLayer extends Layer> = {
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
   onChange: (layer: CurrentLayer) => void;
-  onMarkerPreviewChange: (markers?: MapMarker[]) => void;
+  onMarkersChange: (markers?: MapMarker[]) => void;
   fitMapToPoints: (options: {
     points: MapPoint[];
     paddingFraction: number;

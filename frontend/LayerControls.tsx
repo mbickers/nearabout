@@ -10,14 +10,14 @@ export const LayerControls = ({
   visibleMapBounds,
   entireSearchBounds,
   onChange,
-  onMarkerPreviewChange,
+  onMarkerOverrideChange,
   fitMapToPoints,
 }: {
   layers: [enabled: boolean, layer: Layer][];
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
   onChange: (layers: [enabled: boolean, layer: Layer][]) => void;
-  onMarkerPreviewChange: (markers?: MapMarker[]) => void;
+  onMarkerOverrideChange: (layerKind: Layer["kind"], markers?: MapMarker[]) => void;
   fitMapToPoints: (options: {
     points: MapPoint[];
     paddingFraction: number;
@@ -67,7 +67,7 @@ export const LayerControls = ({
                 disabled={!enabled}
                 visibleMapBounds={visibleMapBounds}
                 entireSearchBounds={entireSearchBounds}
-                onMarkerPreviewChange={onMarkerPreviewChange}
+                onMarkersChange={(markers) => onMarkerOverrideChange(layer.kind, markers)}
                 fitMapToPoints={fitMapToPoints}
                 onChange={(changedLayer) =>
                   onChange(

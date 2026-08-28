@@ -69,15 +69,15 @@ const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
 
 export const Map = ({
   styleFragments,
-  markerPreview,
   initialViewState,
+  minZoom,
   movementBounds,
   onMapLoad,
   onSettledBoundsChange,
 }: {
   styleFragments: MapStyleFragment[];
-  markerPreview?: MapMarker[];
   initialViewState: MapPoint & { zoom: number };
+  minZoom: number;
   movementBounds: [west: number, south: number, east: number, north: number];
   onMapLoad: (map: MapInstance) => void;
   onSettledBoundsChange: (bounds: GeographicBounds) => void;
@@ -114,7 +114,7 @@ export const Map = ({
         initialViewState={initialViewState}
         mapStyle={mapStyle}
         style={{ position: "fixed", inset: 0 }}
-        minZoom={9}
+        minZoom={minZoom}
         maxBounds={movementBounds}
         dragRotate={false}
         touchPitch={false}
@@ -144,8 +144,9 @@ export const Map = ({
           target.keyboard.disableRotation();
         }}
       >
-        {(markerPreview ?? styleFragments.flatMap(({ markers = [] }) => markers)).map(
-          ({ id, label, longitude, latitude, onClick }) => (
+        {styleFragments
+          .flatMap(({ markers = [] }) => markers)
+          .map(({ id, label, longitude, latitude, onClick }) => (
             <Marker key={id} longitude={longitude} latitude={latitude} anchor="center">
               <button
                 type="button"
@@ -187,8 +188,7 @@ export const Map = ({
                 {label}
               </button>
             </Marker>
-          ),
-        )}
+          ))}
       </MapLibreMap>
       <div
         style={{
