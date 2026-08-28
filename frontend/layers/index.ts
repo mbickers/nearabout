@@ -1,9 +1,9 @@
 import type { Layer } from "../layer";
-import type { MapContribution, MapContributionOverride } from "../Map";
+import type { MapContribution } from "../Map";
 import { citibikeDocksDefinition } from "./citibike_docks";
 import { geographyDefinition } from "./geography";
 import { pointsOfInterestDefinition } from "./points_of_interest";
-import type { LayerDefinition, LayerKind, LayerOfKind } from "./shared";
+import type { LayerChange, LayerDefinition, LayerKind, LayerOfKind } from "./shared";
 import { streetsDefinition } from "./streets";
 import { subwayDefinition } from "./subway";
 
@@ -17,18 +17,16 @@ export const LAYER_DEFINITIONS: {
   points_of_interest: pointsOfInterestDefinition,
 };
 
-export type LayerContributionOverrides = Partial<Record<LayerKind, MapContributionOverride>>;
-
 export const mapContributionsForLayers = (
   layers: [enabled: boolean, layer: Layer][],
-  overrides: LayerContributionOverrides,
+  onLayerChange: (kind: LayerKind, change: LayerChange<Layer>) => void,
 ): MapContribution[] =>
   layers.flatMap(([enabled, layer]) => {
     if (!enabled) return [];
 
-    const contribution = (
-      LAYER_DEFINITIONS[layer.kind].mapContribution as (currentLayer: Layer) => MapContribution
-    )(layer);
-    const override = overrides[layer.kind];
-    return [override === undefined ? contribution : { ...contribution, ...override }];
+    const mapContribution = LAYER_DEFINITIONS[layer.kind].mapContribution as (
+      currentLayer: Layer,
+      onChange: (change: LayerChange<Layer>) => void,
+    ) => MapContribution;
+    return [mapContribution(layer, (change) => onLayerChange(layer.kind, change))];
   });

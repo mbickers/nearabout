@@ -43,6 +43,18 @@ export type PointOfInterestSearch = {
   state: LocationSearchState;
 };
 
+export type PointOfInterestSearchRow = {
+  id: string;
+  label: string;
+  search: PointOfInterestSearch;
+};
+
+export type PointsOfInterestSearchState = {
+  viewRequestSourceId: string;
+  nextRequestId: number;
+  rows: PointOfInterestSearchRow[];
+};
+
 export type LocationSearchEvent =
   | { type: "query_changed"; query: string }
   | { type: "map_moved" }

@@ -59,10 +59,6 @@ export type MapContribution = {
   addStyleImages?: (map: MapInstance) => void | Promise<void>;
 };
 
-export type MapContributionOverride = Partial<
-  Pick<MapContribution, "markerElements" | "viewRequest">
->;
-
 const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
   const bounds = map.getBounds();
   return {

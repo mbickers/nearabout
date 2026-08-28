@@ -6,7 +6,7 @@ import type {
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
 import type { Layer } from "../layer";
-import type { LayerZ, MapContribution, MapContributionOverride } from "../Map";
+import type { LayerZ, MapContribution } from "../Map";
 import type { GeographicBounds } from "../map_bounds";
 
 const SOURCE_ID = "protomaps";
@@ -71,18 +71,24 @@ export type LayerKind = Layer["kind"];
 
 export type LayerOfKind<Kind extends LayerKind> = Extract<Layer, { kind: Kind }>;
 
+export type LayerChange<CurrentLayer extends Layer> =
+  | CurrentLayer
+  | ((layer: CurrentLayer) => CurrentLayer);
+
 export type LayerComponentProps<CurrentLayer extends Layer> = {
   layer: CurrentLayer;
   disabled: boolean;
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
-  onChange: (layer: CurrentLayer) => void;
-  onMapContributionChange: (override?: MapContributionOverride) => void;
+  onChange: (change: LayerChange<CurrentLayer>) => void;
 };
 
 export type LayerDefinition<CurrentLayer extends Layer> = {
   label: string;
-  mapContribution: (layer: CurrentLayer) => MapContribution;
+  mapContribution: (
+    layer: CurrentLayer,
+    onChange: (change: LayerChange<CurrentLayer>) => void,
+  ) => MapContribution;
   Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
 };
 

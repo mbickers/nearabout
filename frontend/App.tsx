@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LayerControls } from "./LayerControls";
 import type { Layer } from "./layer";
-import { type LayerContributionOverrides, mapContributionsForLayers } from "./layers";
+import { mapContributionsForLayers } from "./layers";
+import type { LayerChange, LayerKind } from "./layers/shared";
 import { Map } from "./Map";
 import { type GeographicBounds, movementBoundsWithMargin, NYC_BOUNDS } from "./map_bounds";
 
 export const App = () => {
-  const [layerContributionOverrides, setLayerContributionOverrides] =
-    useState<LayerContributionOverrides>({});
   const [visibleMapBounds, setVisibleMapBounds] = useState<GeographicBounds>();
   const [layers, setLayers] = useState<[enabled: boolean, layer: Layer][]>([
     [true, { kind: "geography", parksVisible: true }],
@@ -16,9 +15,34 @@ export const App = () => {
     [true, { kind: "citibike_docks" }],
     [true, { kind: "points_of_interest", items: [] }],
   ]);
+  const changeLayer = useCallback((kind: LayerKind, change: LayerChange<Layer>) => {
+    setLayers((currentLayers) => {
+      let changed = false;
+      const nextLayers = currentLayers.map(([enabled, layer]): [boolean, Layer] => {
+        if (layer.kind !== kind) return [enabled, layer];
+
+        const nextLayer = typeof change === "function" ? change(layer) : change;
+        changed = nextLayer !== layer;
+        return [enabled, nextLayer];
+      });
+      return changed ? nextLayers : currentLayers;
+    });
+  }, []);
+  const changeLayerEnabled = useCallback((kind: LayerKind, enabled: boolean) => {
+    setLayers((currentLayers) => {
+      let changed = false;
+      const nextLayers = currentLayers.map(([currentEnabled, layer]): [boolean, Layer] => {
+        if (layer.kind !== kind || currentEnabled === enabled) return [currentEnabled, layer];
+
+        changed = true;
+        return [enabled, layer];
+      });
+      return changed ? nextLayers : currentLayers;
+    });
+  }, []);
   const mapContributions = useMemo(
-    () => mapContributionsForLayers(layers, layerContributionOverrides),
-    [layers, layerContributionOverrides],
+    () => mapContributionsForLayers(layers, changeLayer),
+    [layers, changeLayer],
   );
 
   return (
@@ -34,20 +58,8 @@ export const App = () => {
         layers={layers}
         visibleMapBounds={visibleMapBounds}
         entireSearchBounds={NYC_BOUNDS}
-        onChange={setLayers}
-        onContributionOverrideChange={(layerKind, override) =>
-          setLayerContributionOverrides((currentOverrides) => {
-            if (override === undefined) {
-              if (currentOverrides[layerKind] === undefined) return currentOverrides;
-
-              const { [layerKind]: _, ...remainingOverrides } = currentOverrides;
-              return remainingOverrides;
-            }
-            return currentOverrides[layerKind] === override
-              ? currentOverrides
-              : { ...currentOverrides, [layerKind]: override };
-          })
-        }
+        onLayerChange={changeLayer}
+        onLayerEnabledChange={changeLayerEnabled}
       />
     </>
   );

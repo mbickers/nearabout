@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker } from "react-map-gl/maplibre";
+import type { PointOfInterest } from "../layer";
 import { searchNominatim } from "./nominatim";
 import {
   completedEntireCitySearch,
@@ -7,25 +8,22 @@ import {
   type LocationSearchResult,
   type LocationSearchScope,
   locationSearchResults,
-  type PointOfInterestSearch,
+  type PointOfInterestSearchRow,
+  type PointsOfInterestSearchState,
   selectedLocationSearchResult,
   transitionLocationSearch,
 } from "./point_of_interest_search";
-import type { LayerComponentProps, LayerDefinition, LayerOfKind } from "./shared";
+import type { LayerChange, LayerComponentProps, LayerDefinition, LayerOfKind } from "./shared";
 
-type PointOfInterestRow = {
-  id: string;
-  label: string;
-  search: PointOfInterestSearch;
-};
+type PointsOfInterestLayer = LayerOfKind<"points_of_interest">;
 
-const emptyPointOfInterestRow = (): PointOfInterestRow => ({
+const emptyPointOfInterestRow = (): PointOfInterestSearchRow => ({
   id: crypto.randomUUID(),
   label: "",
   search: { query: "", state: { status: "idle" } },
 });
 
-const normalizePointOfInterestRows = (rows: PointOfInterestRow[], editedRowId?: string) => {
+const normalizePointOfInterestRows = (rows: PointOfInterestSearchRow[], editedRowId?: string) => {
   const nonemptyRows = rows.filter(({ label, search }) => search.query.trim() || label.trim());
   const emptyRow =
     rows.find(
@@ -34,6 +32,84 @@ const normalizePointOfInterestRows = (rows: PointOfInterestRow[], editedRowId?: 
     rows.find(({ label, search }) => !search.query.trim() && !label.trim()) ??
     emptyPointOfInterestRow();
   return [...nonemptyRows, emptyRow];
+};
+
+const searchStateForItems = (items: PointOfInterest[]): PointsOfInterestSearchState => ({
+  viewRequestSourceId: crypto.randomUUID(),
+  nextRequestId: 0,
+  rows: normalizePointOfInterestRows(
+    items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      search: {
+        query: item.address,
+        state: {
+          status: "selected" as const,
+          result: {
+            label: item.address,
+            longitude: item.longitude,
+            latitude: item.latitude,
+          },
+        },
+      },
+    })),
+  ),
+});
+
+const pointOfInterestItemsForRows = (rows: PointOfInterestSearchRow[]): PointOfInterest[] =>
+  rows.flatMap(({ id, label, search }) => {
+    const selectedResult = selectedLocationSearchResult(search.state);
+    return search.query.trim() && selectedResult
+      ? [
+          {
+            id,
+            address: search.query,
+            label: label.trim() || search.query.trim(),
+            longitude: selectedResult.longitude,
+            latitude: selectedResult.latitude,
+          },
+        ]
+      : [];
+  });
+
+const layerWithSearchRows = (
+  layer: PointsOfInterestLayer,
+  searchState: PointsOfInterestSearchState,
+  rows: PointOfInterestSearchRow[],
+): PointsOfInterestLayer => ({
+  ...layer,
+  items: pointOfInterestItemsForRows(rows),
+  searchState: { ...searchState, rows },
+});
+
+const transitionSearchRow = (
+  rows: PointOfInterestSearchRow[],
+  rowId: string,
+  event: LocationSearchEvent,
+) => {
+  let changed = false;
+  const nextRows = rows.map((row) => {
+    if (row.id !== rowId) return row;
+
+    const search = transitionLocationSearch(row.search, event);
+    if (search === row.search) return row;
+
+    changed = true;
+    return { ...row, search };
+  });
+  return changed ? nextRows : rows;
+};
+
+const transitionEverySearchRow = (rows: PointOfInterestSearchRow[], event: LocationSearchEvent) => {
+  let changed = false;
+  const nextRows = rows.map((row) => {
+    const search = transitionLocationSearch(row.search, event);
+    if (search === row.search) return row;
+
+    changed = true;
+    return { ...row, search };
+  });
+  return changed ? nextRows : rows;
 };
 
 const PointOfInterestMarker = ({
@@ -91,128 +167,46 @@ const PointsOfInterestControls = ({
   visibleMapBounds,
   entireSearchBounds,
   onChange,
-  onMapContributionChange,
-}: LayerComponentProps<LayerOfKind<"points_of_interest">>) => {
-  const [viewRequestSourceId] = useState(() => crypto.randomUUID());
-  const nextSearchRequestId = useRef(0);
-  const lastEmittedItems = useRef<string>(undefined);
-  const onChangeRef = useRef(onChange);
-  const onMapContributionChangeRef = useRef(onMapContributionChange);
+}: LayerComponentProps<PointsOfInterestLayer>) => {
+  const [initialSearchState] = useState(
+    () => layer.searchState ?? searchStateForItems(layer.items),
+  );
+  const searchState = layer.searchState ?? initialSearchState;
+  const rows = searchState.rows;
   const visibleMapBoundsRef = useRef(visibleMapBounds);
-  onChangeRef.current = onChange;
-  onMapContributionChangeRef.current = onMapContributionChange;
   visibleMapBoundsRef.current = visibleMapBounds;
-  const [rows, setRows] = useState<PointOfInterestRow[]>(() =>
-    normalizePointOfInterestRows(
-      layer.items.map((item) => ({
-        id: item.id,
-        label: item.label,
-        search: {
-          query: item.address,
-          state: {
-            status: "selected" as const,
-            result: {
-              label: item.address,
-              longitude: item.longitude,
-              latitude: item.latitude,
-            },
-          },
-        },
-      })),
-    ),
+
+  useEffect(() => {
+    if (layer.searchState) return;
+
+    onChange((currentLayer) =>
+      currentLayer.searchState
+        ? currentLayer
+        : layerWithSearchRows(currentLayer, initialSearchState, initialSearchState.rows),
+    );
+  }, [initialSearchState, layer.searchState, onChange]);
+
+  const updateRows = useCallback(
+    (update: (rows: PointOfInterestSearchRow[]) => PointOfInterestSearchRow[]) =>
+      onChange((currentLayer) => {
+        const currentSearchState = currentLayer.searchState ?? initialSearchState;
+        const rows = update(currentSearchState.rows);
+        if (currentLayer.searchState && rows === currentSearchState.rows) return currentLayer;
+
+        return layerWithSearchRows(currentLayer, currentSearchState, rows);
+      }),
+    [initialSearchState, onChange],
   );
 
   const transitionRowSearch = useCallback(
     (rowId: string, event: LocationSearchEvent) =>
-      setRows((currentRows) =>
-        currentRows.map((currentRow) =>
-          currentRow.id === rowId
-            ? {
-                ...currentRow,
-                search: transitionLocationSearch(currentRow.search, event),
-              }
-            : currentRow,
-        ),
-      ),
-    [],
+      updateRows((currentRows) => transitionSearchRow(currentRows, rowId, event)),
+    [updateRows],
   );
-
-  const selectSearchResult = useCallback(
-    (rowId: string, result: LocationSearchResult) => {
-      transitionRowSearch(rowId, { type: "result_selected", result });
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    },
-    [transitionRowSearch],
-  );
-
-  useEffect(() => {
-    const items = rows.flatMap(({ id, label, search }) => {
-      const selectedResult = selectedLocationSearchResult(search.state);
-      return search.query.trim() && selectedResult
-        ? [
-            {
-              id,
-              address: search.query,
-              label: label.trim() || search.query.trim(),
-              longitude: selectedResult.longitude,
-              latitude: selectedResult.latitude,
-            },
-          ]
-        : [];
-    });
-    const serializedItems = JSON.stringify(items);
-    if (serializedItems === lastEmittedItems.current) return;
-
-    lastEmittedItems.current = serializedItems;
-    onChangeRef.current({ kind: "points_of_interest", items });
-  }, [rows]);
-
-  useEffect(() => {
-    if (disabled) {
-      onMapContributionChangeRef.current(undefined);
-      return;
-    }
-
-    const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
-    const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
-    const completedSearch = rows
-      .map(({ search }) => completedEntireCitySearch(search.state))
-      .filter((search): search is NonNullable<typeof search> => search !== undefined)
-      .sort((first, second) => second.requestId - first.requestId)[0];
-    if (!activeSearchRow && !completedSearch) {
-      onMapContributionChangeRef.current(undefined);
-      return;
-    }
-
-    onMapContributionChangeRef.current({
-      ...(activeSearchRow && results
-        ? {
-            markerElements: results.map((result) => (
-              <PointOfInterestMarker
-                key={`${activeSearchRow.id}:${result.latitude},${result.longitude}:${result.label}`}
-                {...result}
-                onClick={() => selectSearchResult(activeSearchRow.id, result)}
-              />
-            )),
-          }
-        : {}),
-      ...(completedSearch
-        ? {
-            viewRequest: {
-              id: `${viewRequestSourceId}:${completedSearch.requestId}`,
-              points: completedSearch.results,
-              paddingFraction: 0.1,
-              maxZoom: 14,
-            },
-          }
-        : {}),
-    });
-  }, [rows, disabled, selectSearchResult, viewRequestSourceId]);
 
   const runLocationSearch = useCallback(
     async (rowId: string, query: string, scope: LocationSearchScope, requestId: number) => {
-      const visibleBounds = visibleMapBoundsRef.current;
-      const bounds = scope === "entire_city" ? entireSearchBounds : visibleBounds;
+      const bounds = scope === "entire_city" ? entireSearchBounds : visibleMapBoundsRef.current;
       if (!bounds) return;
 
       try {
@@ -228,15 +222,12 @@ const PointsOfInterestControls = ({
   useEffect(() => {
     if (!visibleMapBounds) return;
 
-    setRows((currentRows) =>
-      currentRows.map((currentRow) => ({
-        ...currentRow,
-        search: transitionLocationSearch(currentRow.search, { type: "map_moved" }),
-      })),
-    );
-  }, [visibleMapBounds]);
+    updateRows((currentRows) => transitionEverySearchRow(currentRows, { type: "map_moved" }));
+  }, [visibleMapBounds, updateRows]);
 
   useEffect(() => {
+    if (disabled) return;
+
     const rowToSearch = rows.find(
       ({ search }) =>
         search.state.status === "queued" &&
@@ -246,13 +237,35 @@ const PointsOfInterestControls = ({
 
     const { query } = rowToSearch.search;
     const { scope } = rowToSearch.search.state;
+    const requestId = searchState.nextRequestId + 1;
     const timeout = window.setTimeout(() => {
-      const requestId = ++nextSearchRequestId.current;
-      transitionRowSearch(rowToSearch.id, { type: "search_started", requestId });
+      onChange((currentLayer) => {
+        const currentSearchState = currentLayer.searchState ?? initialSearchState;
+        const nextRows = transitionSearchRow(currentSearchState.rows, rowToSearch.id, {
+          type: "search_started",
+          requestId,
+        });
+        return {
+          ...layerWithSearchRows(currentLayer, currentSearchState, nextRows),
+          searchState: {
+            ...currentSearchState,
+            nextRequestId: Math.max(currentSearchState.nextRequestId, requestId),
+            rows: nextRows,
+          },
+        };
+      });
       void runLocationSearch(rowToSearch.id, query, scope, requestId);
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [rows, visibleMapBounds, runLocationSearch, transitionRowSearch]);
+  }, [
+    disabled,
+    initialSearchState,
+    onChange,
+    rows,
+    runLocationSearch,
+    searchState.nextRequestId,
+    visibleMapBounds,
+  ]);
 
   return (
     <div style={{ display: "grid", gap: 6, width: 260 }}>
@@ -283,19 +296,12 @@ const PointsOfInterestControls = ({
                   value={row.search.query}
                   disabled={disabled}
                   onChange={({ target }) =>
-                    setRows((currentRows) =>
+                    updateRows((currentRows) =>
                       normalizePointOfInterestRows(
-                        currentRows.map((currentRow) =>
-                          currentRow.id === row.id
-                            ? {
-                                ...currentRow,
-                                search: transitionLocationSearch(currentRow.search, {
-                                  type: "query_changed",
-                                  query: target.value,
-                                }),
-                              }
-                            : currentRow,
-                        ),
+                        transitionSearchRow(currentRows, row.id, {
+                          type: "query_changed",
+                          query: target.value,
+                        }),
                         row.id,
                       ),
                     )
@@ -310,7 +316,7 @@ const PointsOfInterestControls = ({
                   value={row.label}
                   disabled={disabled}
                   onChange={({ target }) =>
-                    setRows((currentRows) =>
+                    updateRows((currentRows) =>
                       normalizePointOfInterestRows(
                         currentRows.map((currentRow) =>
                           currentRow.id === row.id
@@ -329,7 +335,7 @@ const PointsOfInterestControls = ({
                   title="Delete"
                   disabled={disabled}
                   onClick={() =>
-                    setRows((currentRows) =>
+                    updateRows((currentRows) =>
                       normalizePointOfInterestRows(currentRows.filter(({ id }) => id !== row.id)),
                     )
                   }
@@ -392,14 +398,65 @@ const PointsOfInterestControls = ({
   );
 };
 
-export const pointsOfInterestDefinition: LayerDefinition<LayerOfKind<"points_of_interest">> = {
+const selectSearchResult = (
+  onChange: (change: LayerChange<PointsOfInterestLayer>) => void,
+  rowId: string,
+  result: LocationSearchResult,
+) => {
+  onChange((layer) => {
+    if (!layer.searchState) return layer;
+
+    const rows = transitionSearchRow(layer.searchState.rows, rowId, {
+      type: "result_selected",
+      result,
+    });
+    return layerWithSearchRows(layer, layer.searchState, rows);
+  });
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+};
+
+export const pointsOfInterestDefinition: LayerDefinition<PointsOfInterestLayer> = {
   label: "Points of interest",
-  mapContribution: ({ items }) => ({
-    sources: {},
-    physicalLayers: [],
-    markerElements: items.map(({ id, label, longitude, latitude }) => (
-      <PointOfInterestMarker key={id} label={label} longitude={longitude} latitude={latitude} />
-    )),
-  }),
+  mapContribution: (layer, onChange) => {
+    const rows = layer.searchState?.rows ?? [];
+    const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
+    const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
+    const completedSearch = rows
+      .map(({ search }) => completedEntireCitySearch(search.state))
+      .filter((search): search is NonNullable<typeof search> => search !== undefined)
+      .sort((first, second) => second.requestId - first.requestId)[0];
+
+    return {
+      sources: {},
+      physicalLayers: [],
+      markerElements:
+        activeSearchRow && results
+          ? results.map((result) => (
+              <PointOfInterestMarker
+                key={`${activeSearchRow.id}:${result.latitude},${result.longitude}:${result.label}`}
+                {...result}
+                onClick={() => selectSearchResult(onChange, activeSearchRow.id, result)}
+              />
+            ))
+          : layer.items.map(({ id, label, longitude, latitude }) => (
+              <PointOfInterestMarker
+                key={id}
+                label={label}
+                longitude={longitude}
+                latitude={latitude}
+              />
+            )),
+      ...(completedSearch && layer.searchState
+        ? {
+            viewRequest: {
+              id: `${layer.searchState.viewRequestSourceId}:${completedSearch.requestId}`,
+              points: completedSearch.results,
+              paddingFraction: 0.1,
+              maxZoom: 14,
+            },
+          }
+        : {}),
+    };
+  },
   Controls: PointsOfInterestControls,
 };
