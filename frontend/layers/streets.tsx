@@ -289,7 +289,7 @@ const paintedBikeOneWayLayer: PhysicalLayer = {
 
 export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
   label: "Streets",
-  mapStyleFragment: ({ bikeLanesVisible }) => ({
+  mapContribution: ({ bikeLanesVisible }) => ({
     sources: {
       ...PROTOMAPS_SOURCES,
       [ROAD_SOURCE_ID]: { type: "geojson", data: "/data/osm_roads.geojson" },
