@@ -3,11 +3,11 @@ import type {
   CircleLayerSpecification,
   ExpressionSpecification,
   LayerSpecification,
-  LngLatBounds,
 } from "maplibre-gl";
 import type { ComponentType, ReactNode } from "react";
 import type { Layer } from "../layer";
 import type { LayerZ, MapMarker, MapPoint, MapStyleFragment } from "../Map";
+import type { GeographicBounds } from "../map_bounds";
 
 const SOURCE_ID = "protomaps";
 export const DETAIL_FADE_IN = 14;
@@ -74,7 +74,8 @@ export type LayerOfKind<Kind extends LayerKind> = Extract<Layer, { kind: Kind }>
 export type LayerComponentProps<CurrentLayer extends Layer> = {
   layer: CurrentLayer;
   disabled: boolean;
-  visibleMapBounds?: LngLatBounds;
+  visibleMapBounds?: GeographicBounds;
+  entireSearchBounds: GeographicBounds;
   onChange: (layer: CurrentLayer) => void;
   onMarkerPreviewChange: (markers?: MapMarker[]) => void;
   fitMapToPoints: (options: {

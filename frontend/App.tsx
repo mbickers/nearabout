@@ -1,4 +1,4 @@
-import type { LngLatBounds, Map as MapInstance } from "maplibre-gl";
+import type { Map as MapInstance } from "maplibre-gl";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LayerControls } from "./LayerControls";
 import type { Layer } from "./layer";
@@ -10,10 +10,11 @@ import {
   type MapPoint,
   type MapStyleFragment,
 } from "./Map";
+import { type GeographicBounds, NYC_BOUNDS } from "./map_bounds";
 
 export const App = () => {
   const [markerPreview, setMarkerPreview] = useState<MapMarker[]>();
-  const [visibleMapBounds, setVisibleMapBounds] = useState<LngLatBounds>();
+  const [visibleMapBounds, setVisibleMapBounds] = useState<GeographicBounds>();
   const mapRef = useRef<MapInstance>(null);
   const fitMapToPoints = useCallback(
     (options: { points: MapPoint[]; paddingFraction: number; maxZoom: number }) =>
@@ -46,6 +47,13 @@ export const App = () => {
       <Map
         styleFragments={styleFragments}
         markerPreview={markerPreview}
+        initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: 11 }}
+        movementBounds={[
+          NYC_BOUNDS.west - (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
+          NYC_BOUNDS.south - (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
+          NYC_BOUNDS.east + (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
+          NYC_BOUNDS.north + (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
+        ]}
         onMapLoad={(map) => {
           mapRef.current = map;
         }}
@@ -54,6 +62,7 @@ export const App = () => {
       <LayerControls
         layers={layers}
         visibleMapBounds={visibleMapBounds}
+        entireSearchBounds={NYC_BOUNDS}
         onChange={setLayers}
         onMarkerPreviewChange={setMarkerPreview}
         fitMapToPoints={fitMapToPoints}

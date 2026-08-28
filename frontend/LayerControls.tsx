@@ -1,19 +1,21 @@
-import type { LngLatBounds } from "maplibre-gl";
 import type { ComponentType } from "react";
 import type { Layer } from "./layer";
 import { LAYER_DEFINITIONS } from "./layers";
-import { MAP_FONT } from "./layers/shared";
+import { type LayerComponentProps, MAP_FONT } from "./layers/shared";
 import type { MapMarker, MapPoint } from "./Map";
+import type { GeographicBounds } from "./map_bounds";
 
 export const LayerControls = ({
   layers,
   visibleMapBounds,
+  entireSearchBounds,
   onChange,
   onMarkerPreviewChange,
   fitMapToPoints,
 }: {
   layers: [enabled: boolean, layer: Layer][];
-  visibleMapBounds?: LngLatBounds;
+  visibleMapBounds?: GeographicBounds;
+  entireSearchBounds: GeographicBounds;
   onChange: (layers: [enabled: boolean, layer: Layer][]) => void;
   onMarkerPreviewChange: (markers?: MapMarker[]) => void;
   fitMapToPoints: (options: {
@@ -38,20 +40,7 @@ export const LayerControls = ({
   >
     {layers.map(([enabled, layer]) => {
       const definition = LAYER_DEFINITIONS[layer.kind];
-      const Controls = definition.Controls as
-        | ComponentType<{
-            layer: Layer;
-            disabled: boolean;
-            visibleMapBounds?: LngLatBounds;
-            onChange: (layer: Layer) => void;
-            onMarkerPreviewChange: (markers?: MapMarker[]) => void;
-            fitMapToPoints: (options: {
-              points: MapPoint[];
-              paddingFraction: number;
-              maxZoom: number;
-            }) => void;
-          }>
-        | undefined;
+      const Controls = definition.Controls as ComponentType<LayerComponentProps<Layer>> | undefined;
 
       return (
         <div key={layer.kind} style={{ display: "grid", gap: 4 }}>
@@ -77,6 +66,7 @@ export const LayerControls = ({
                 layer={layer}
                 disabled={!enabled}
                 visibleMapBounds={visibleMapBounds}
+                entireSearchBounds={entireSearchBounds}
                 onMarkerPreviewChange={onMarkerPreviewChange}
                 fitMapToPoints={fitMapToPoints}
                 onChange={(changedLayer) =>

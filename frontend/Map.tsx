@@ -7,7 +7,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import MapLibreMap, { Marker } from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layers/shared";
-import { NYC_BOUNDS } from "./map_bounds";
+import type { GeographicBounds } from "./map_bounds";
 
 export type LayerZ = "background" | "street" | "feature" | "label" | "debug";
 
@@ -57,20 +57,33 @@ export type MapStyleFragment = {
   addStyleImages?: (map: MapInstance) => void | Promise<void>;
 };
 
+const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
+  const bounds = map.getBounds();
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+  };
+};
+
 export const Map = ({
   styleFragments,
   markerPreview,
+  initialViewState,
+  movementBounds,
   onMapLoad,
   onSettledBoundsChange,
 }: {
   styleFragments: MapStyleFragment[];
   markerPreview?: MapMarker[];
+  initialViewState: MapPoint & { zoom: number };
+  movementBounds: [west: number, south: number, east: number, north: number];
   onMapLoad: (map: MapInstance) => void;
-  onSettledBoundsChange: (bounds: LngLatBounds) => void;
+  onSettledBoundsChange: (bounds: GeographicBounds) => void;
 }) => {
-  const initialZoom = 11;
-  const [zoom, setZoom] = useState(initialZoom);
-  const [bounds, setBounds] = useState<LngLatBounds>();
+  const [zoom, setZoom] = useState(initialViewState.zoom);
+  const [bounds, setBounds] = useState<GeographicBounds>();
   const styleFragmentsRef = useRef(styleFragments);
   styleFragmentsRef.current = styleFragments;
   // react-map-gl reloads the style when the prop changes identity, which every pan and zoom
@@ -98,28 +111,22 @@ export const Map = ({
   return (
     <>
       <MapLibreMap
-        initialViewState={{ longitude: -73.98, latitude: 40.74, zoom: initialZoom }}
+        initialViewState={initialViewState}
         mapStyle={mapStyle}
         style={{ position: "fixed", inset: 0 }}
         minZoom={9}
-        // the bounding box of the five boroughs, with a margin of 20 percent of its span on
-        // each side, which keeps the city in the frame
-        maxBounds={[
-          NYC_BOUNDS.west - (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
-          NYC_BOUNDS.south - (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
-          NYC_BOUNDS.east + (NYC_BOUNDS.east - NYC_BOUNDS.west) * 0.2,
-          NYC_BOUNDS.north + (NYC_BOUNDS.north - NYC_BOUNDS.south) * 0.2,
-        ]}
+        maxBounds={movementBounds}
         dragRotate={false}
         touchPitch={false}
         maxPitch={0}
+        // Preserve focus in the layer controls while the user pans the map.
         onMouseDown={({ originalEvent }) => originalEvent.preventDefault()}
         onMove={({ target, viewState }) => {
           setZoom(viewState.zoom);
-          setBounds(target.getBounds());
+          setBounds(geographicBoundsFor(target));
         }}
         onMoveEnd={({ target, originalEvent }) =>
-          originalEvent && onSettledBoundsChange(target.getBounds())
+          originalEvent && onSettledBoundsChange(geographicBoundsFor(target))
         }
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
@@ -129,8 +136,8 @@ export const Map = ({
           });
         }}
         onLoad={({ target }) => {
-          setBounds(target.getBounds());
-          onSettledBoundsChange(target.getBounds());
+          setBounds(geographicBoundsFor(target));
+          onSettledBoundsChange(geographicBoundsFor(target));
           onMapLoad(target);
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();
@@ -143,6 +150,8 @@ export const Map = ({
               <button
                 type="button"
                 aria-label={onClick ? `Select ${label}` : undefined}
+                // Let result selection update the search state before it deliberately blurs
+                // the address input.
                 onMouseDown={
                   onClick
                     ? (event) => {
@@ -200,7 +209,7 @@ export const Map = ({
         <span>
           bbox:{" "}
           {bounds &&
-            [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+            [bounds.west, bounds.south, bounds.east, bounds.north]
               .map((degrees) => degrees.toFixed(4))
               .join(", ")}
         </span>
