@@ -3,6 +3,7 @@ export type Position = [longitude: number, latitude: number];
 type SubwayTrackGraphEdge = {
   geometry: Position[];
   trunks: string[];
+  shapes_by_trunk: Record<string, string[]>;
 };
 
 type SubwayTrackGraphVertex = {

@@ -57,10 +57,12 @@ outputs = ["data/gtfs"]
 
 [tasks."data:subway_track_graph"]
 run = "uv run python -m data.build_subway_track_graph"
-depends = ["data:subway_gtfs"]
+depends = ["data:subway_gtfs", "data:roads"]
 sources = [
+    "public/data/osm_roads.geojson",
     "data/build_subway_track_graph.py",
     "data/gtfs_types.py",
+    "data/track_graph.py",
     "data/gtfs/routes.txt",
     "data/gtfs/trips.txt",
     "data/gtfs/stops.txt",
@@ -100,5 +102,5 @@ run = [
     "uv run ruff format --check .",
     "uv run ruff check .",
     "uv run ty check",
-    "uv run python -m unittest discover -s data -p '*_test.py'",
+    "uv run pytest data",
 ]
