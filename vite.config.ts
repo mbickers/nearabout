@@ -24,6 +24,9 @@ const reloadOnPublicChange = (): Plugin => {
 };
 
 export default defineConfig({
+  server: {
+    host: "127.0.0.1",
+  },
   define: {
     "import.meta.env.VITE_GIT_BRANCH": JSON.stringify(
       execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim(),
