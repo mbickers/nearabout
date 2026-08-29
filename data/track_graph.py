@@ -281,6 +281,9 @@ def build_track_graph(
     """Build a graph by merging nearby parallel track paths."""
 
     track_paths = _deduplicated_track_paths(track_paths)
+
+    # Graph shape should not change based on swapping direction of any path.
+
     nearby_vertices = NearbyParallelDirectedPointMap[int](
         max_radius=merge_radius,
         max_heading_difference_rad=merge_heading_tolerance_rad,

@@ -1,4 +1,6 @@
-from data.track_graph import Point, TrackPath, _deduplicated_track_paths, build_track_graph
+import pytest
+
+from data.track_graph import Point, TrackPath, build_track_graph
 
 
 def path(trunk, *positions, shape=None):
@@ -9,17 +11,17 @@ def path(trunk, *positions, shape=None):
     )
 
 
-def test_identical_shape_geometries_become_one_track_path():
-    positions = (Point(0, 0), Point(1, 1))
-    track_paths = _deduplicated_track_paths(
-        [
+def test_identical_paths_preserve_all_shape_ids():
+    positions = [Point(0, 0), Point(1000, 0)]
+    graph = build_track_graph(
+        track_paths=[
             TrackPath(positions=positions, trunk="blue", shapes=frozenset({"first"})),
             TrackPath(positions=positions, trunk="blue", shapes=frozenset({"second"})),
         ]
     )
+    (edge,) = graph.edges
 
-    assert len(track_paths) == 1
-    assert track_paths[0].shapes == frozenset({"first", "second"})
+    assert edge.shapes_by_trunk == {"blue": frozenset({"first", "second"})}
 
 
 def test_one_path_becomes_one_edge():
@@ -58,6 +60,19 @@ def test_crossing_paths_do_not_merge():
     )
     assert len(graph.edges) == 2
     assert len(graph.vertices) == 4
+
+
+@pytest.mark.xfail(strict=True, reason="City Hall track geometry doubles back")
+def test_an_edge_does_not_double_back_at_city_hall():
+    graph = build_track_graph(track_paths=[path("yellow", (0, 0), (73, -69), (-38, 58))])
+    (edge,) = graph.edges
+
+    assert all(
+        (middle.x - start.x) * (end.x - middle.x) + (middle.y - start.y) * (end.y - middle.y) >= 0
+        for start, middle, end in zip(
+            edge.geometry, edge.geometry[1:], edge.geometry[2:], strict=False
+        )
+    )
 
 
 def test_converging_paths_leave_no_chord_beside_the_merged_chain():
