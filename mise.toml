@@ -9,6 +9,13 @@ task.source_freshness_hash_contents = true
 
 [tasks.bootstrap]
 run = "./data/bootstrap_worktree.sh"
+sources = []
+outputs = { auto = true }
+
+[tasks.dev]
+depends = ["bootstrap"]
+run = "npm run dev"
+interactive = true
 
 [tasks."data:basemap"]
 run = "uv run python -m data.fetch_basemap"
