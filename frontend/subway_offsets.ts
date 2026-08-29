@@ -8,7 +8,7 @@ type SubwayTrackGraphEdge = {
 
 type SubwayTrackGraphVertex = {
   position: Position;
-  edge_ids: number[];
+  trunks: string[];
 };
 
 export type SubwayTrackGraphData = {
@@ -21,7 +21,6 @@ type GraphProperties = {
   label: string;
   trunks?: string[];
   edge_id?: number;
-  edge_ids?: number[];
 };
 
 export type SubwayTrackGraph = {
@@ -67,8 +66,8 @@ export const buildSubwayTrackGraph = (graph: SubwayTrackGraphData): SubwayTrackG
       geometry: { type: "Point" as const, coordinates: vertex.position },
       properties: {
         kind: "vertex" as const,
-        edge_ids: vertex.edge_ids,
-        label: vertex.edge_ids.join(", "),
+        trunks: vertex.trunks,
+        label: vertex.trunks.join(", "),
       },
     })),
   ],

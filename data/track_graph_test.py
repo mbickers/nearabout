@@ -13,6 +13,7 @@ def test_one_path_becomes_one_edge():
     graph = build_track_graph(track_paths=[path("red", (0, 0), (1000, 0))])
     assert len(graph.vertices) == 2
     assert [sorted(edge.trunks) for edge in graph.edges] == [["red"]]
+    assert [sorted(vertex.trunks) for vertex in graph.vertices] == [["red"], ["red"]]
 
 
 def test_paths_within_the_merge_radius_become_one_edge():
@@ -53,16 +54,7 @@ def test_converging_paths_leave_no_chord_beside_the_merged_chain():
             path("green", (0, 18), (400, 0)),
         ]
     )
-    endpoint_pairs = [
-        tuple(
-            sorted(
-                vertex_id
-                for vertex_id, vertex in enumerate(graph.vertices)
-                if edge_id in vertex.edge_ids
-            )
-        )
-        for edge_id in range(len(graph.edges))
-    ]
+    endpoint_pairs = [tuple(sorted(edge.endpoint_vertex_ids)) for edge in graph.edges]
     assert len(set(endpoint_pairs)) == len(endpoint_pairs)
 
 

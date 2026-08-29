@@ -2,7 +2,7 @@ import itertools
 import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import NamedTuple
 
 
@@ -23,12 +23,13 @@ class TrackGraphEdge:
     geometry: tuple[Point, ...]
     trunks: frozenset[str]
     shapes_by_trunk: Mapping[str, frozenset[str]]
+    endpoint_vertex_ids: tuple[int, int]
 
 
 @dataclass(frozen=True, kw_only=True)
 class TrackGraphVertex:
     position: Point
-    edge_ids: frozenset[int]
+    trunks: frozenset[str]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -172,7 +173,7 @@ def _compressed_edges(
     vertex_positions: list[Point],
     trunks_by_segment: dict[tuple[int, int], set[str]],
     shapes_by_segment: dict[tuple[int, int], set[tuple[str, str]]],
-) -> tuple[tuple[TrackGraphEdge, ...], tuple[tuple[int, int], ...]]:
+) -> tuple[TrackGraphEdge, ...]:
     incident_segments_by_vertex_id: dict[int, list[tuple[int, tuple[int, int]]]] = defaultdict(list)
     for segment in trunks_by_segment:
         first_vertex_id, second_vertex_id = segment
@@ -187,7 +188,6 @@ def _compressed_edges(
     }
     visited_segments: set[tuple[int, int]] = set()
     compressed_edges: list[TrackGraphEdge] = []
-    compressed_edge_endpoints: list[tuple[int, int]] = []
 
     def add_compressed_edge(
         start_vertex_id: int,
@@ -221,9 +221,9 @@ def _compressed_edges(
                     trunk: frozenset(shape for shape_trunk, shape in shapes if shape_trunk == trunk)
                     for trunk in trunks
                 },
+                endpoint_vertex_ids=(start_vertex_id, current_vertex_id),
             )
         )
-        compressed_edge_endpoints.append((start_vertex_id, current_vertex_id))
 
     for start_vertex_id in sorted(boundary_vertex_ids):
         for neighboring_vertex_id, segment in incident_segments_by_vertex_id[start_vertex_id]:
@@ -234,7 +234,7 @@ def _compressed_edges(
     for segment in trunks_by_segment.keys() - visited_segments:
         if segment not in visited_segments:
             add_compressed_edge(segment[0], segment[1], segment)
-    return tuple(compressed_edges), tuple(compressed_edge_endpoints)
+    return tuple(compressed_edges)
 
 
 def _skipped_vertex_id(
@@ -315,15 +315,28 @@ def build_track_graph(
             trunks_by_segment[segment].add(track_path.trunk)
             shapes_by_segment[segment].add((track_path.trunk, track_path.shape))
 
-    compressed_edges, compressed_edge_endpoint_vertex_ids = _compressed_edges(
-        vertex_positions, trunks_by_segment, shapes_by_segment
+    compressed_edges = _compressed_edges(vertex_positions, trunks_by_segment, shapes_by_segment)
+    trunks_by_vertex_id: dict[int, set[str]] = defaultdict(set)
+    for edge in compressed_edges:
+        for endpoint_vertex_id in edge.endpoint_vertex_ids:
+            trunks_by_vertex_id[endpoint_vertex_id] |= edge.trunks
+    graph_vertex_ids = {
+        vertex_id: graph_vertex_id
+        for graph_vertex_id, vertex_id in enumerate(sorted(trunks_by_vertex_id))
+    }
+    return TrackGraph(
+        edges=tuple(
+            replace(
+                edge,
+                endpoint_vertex_ids=(
+                    graph_vertex_ids[edge.endpoint_vertex_ids[0]],
+                    graph_vertex_ids[edge.endpoint_vertex_ids[1]],
+                ),
+            )
+            for edge in compressed_edges
+        ),
+        vertices=tuple(
+            TrackGraphVertex(position=vertex_positions[vertex_id], trunks=frozenset(trunks))
+            for vertex_id, trunks in sorted(trunks_by_vertex_id.items())
+        ),
     )
-    incident_edge_ids_by_vertex_id: dict[int, set[int]] = defaultdict(set)
-    for edge_id, endpoint_vertex_ids in enumerate(compressed_edge_endpoint_vertex_ids):
-        for endpoint_vertex_id in endpoint_vertex_ids:
-            incident_edge_ids_by_vertex_id[endpoint_vertex_id].add(edge_id)
-    graph_vertices = tuple(
-        TrackGraphVertex(position=vertex_positions[vertex_id], edge_ids=frozenset(edge_ids))
-        for vertex_id, edge_ids in sorted(incident_edge_ids_by_vertex_id.items())
-    )
-    return TrackGraph(edges=compressed_edges, vertices=graph_vertices)
