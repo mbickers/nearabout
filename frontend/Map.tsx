@@ -15,6 +15,8 @@ export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
 
 export type MapPoint = { longitude: number; latitude: number };
 
+export type MapView = MapPoint & { zoom: number };
+
 export type MapViewRequest = {
   id: string;
   points: MapPoint[];
@@ -69,22 +71,30 @@ const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
   };
 };
 
+export type SettledMapState = { bounds: GeographicBounds; view: MapView };
+
+const settledMapStateFor = (map: MapInstance): SettledMapState => {
+  const center = map.getCenter();
+  return {
+    bounds: geographicBoundsFor(map),
+    view: { longitude: center.lng, latitude: center.lat, zoom: map.getZoom() },
+  };
+};
+
 export const Map = ({
   contributions,
   styleContributions,
   viewState,
   minZoom,
   movementBounds,
-  onSettledBoundsChange,
-  onSettledViewStateChange,
+  onSettledChange,
 }: {
   contributions: MapContribution[];
   styleContributions: MapContribution[];
-  viewState: MapPoint & { zoom: number };
+  viewState: MapView;
   minZoom: number;
   movementBounds: [west: number, south: number, east: number, north: number];
-  onSettledBoundsChange: (bounds: GeographicBounds) => void;
-  onSettledViewStateChange: (viewState: MapPoint & { zoom: number }) => void;
+  onSettledChange: (settled: SettledMapState) => void;
 }) => {
   const [map, setMap] = useState<MapInstance>();
   const [zoom, setZoom] = useState(viewState.zoom);
@@ -153,15 +163,7 @@ export const Map = ({
           setZoom(viewState.zoom);
           setBounds(geographicBoundsFor(target));
         }}
-        onMoveEnd={({ target }) => {
-          const center = target.getCenter();
-          onSettledBoundsChange(geographicBoundsFor(target));
-          onSettledViewStateChange({
-            longitude: center.lng,
-            latitude: center.lat,
-            zoom: target.getZoom(),
-          });
-        }}
+        onMoveEnd={({ target }) => onSettledChange(settledMapStateFor(target))}
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
             for (const { addStyleImages } of contributionsRef.current) {
@@ -170,8 +172,9 @@ export const Map = ({
           });
         }}
         onLoad={({ target }) => {
-          setBounds(geographicBoundsFor(target));
-          onSettledBoundsChange(geographicBoundsFor(target));
+          const settled = settledMapStateFor(target);
+          setBounds(settled.bounds);
+          onSettledChange(settled);
           setMap(target);
           // pinch-zoom and keyboard panning stay on, so these two cannot be disabled by prop
           target.touchZoomRotate.disableRotation();

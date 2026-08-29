@@ -110,8 +110,10 @@ export const App = () => {
         viewState={mapState.view}
         minZoom={9}
         movementBounds={movementBoundsWithMargin(NYC_BOUNDS, 0.2)}
-        onSettledBoundsChange={setVisibleMapBounds}
-        onSettledViewStateChange={(view) => setMapState((state) => ({ ...state, view }))}
+        onSettledChange={({ bounds, view }) => {
+          setVisibleMapBounds(bounds);
+          setMapState((state) => ({ ...state, view }));
+        }}
       />
       <LayerControls
         layers={layers}
