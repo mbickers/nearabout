@@ -71,19 +71,23 @@ const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
 
 export const Map = ({
   contributions,
-  initialViewState,
+  styleContributions,
+  viewState,
   minZoom,
   movementBounds,
   onSettledBoundsChange,
+  onSettledViewStateChange,
 }: {
   contributions: MapContribution[];
-  initialViewState: MapPoint & { zoom: number };
+  styleContributions: MapContribution[];
+  viewState: MapPoint & { zoom: number };
   minZoom: number;
   movementBounds: [west: number, south: number, east: number, north: number];
   onSettledBoundsChange: (bounds: GeographicBounds) => void;
+  onSettledViewStateChange: (viewState: MapPoint & { zoom: number }) => void;
 }) => {
   const [map, setMap] = useState<MapInstance>();
-  const [zoom, setZoom] = useState(initialViewState.zoom);
+  const [zoom, setZoom] = useState(viewState.zoom);
   const [bounds, setBounds] = useState<GeographicBounds>();
   const appliedViewRequestIds = useRef(new Set<string>());
   const contributionsRef = useRef(contributions);
@@ -102,13 +106,13 @@ export const Map = ({
     return {
       version: 8 as const,
       glyphs: "/data/fonts/{fontstack}/{range}.pbf",
-      sources: Object.assign({}, ...contributions.map(({ sources }) => sources)),
-      layers: contributions
+      sources: Object.assign({}, ...styleContributions.map(({ sources }) => sources)),
+      layers: styleContributions
         .flatMap(({ physicalLayers }) => physicalLayers)
         .sort((first, second) => zOrder[first.z] - zOrder[second.z])
         .map(({ style }) => style),
     };
-  }, [contributions]);
+  }, [styleContributions]);
 
   useEffect(() => {
     if (!map) return;
@@ -121,10 +125,21 @@ export const Map = ({
     }
   }, [map, contributions]);
 
+  useEffect(() => {
+    if (!map) return;
+    const center = map.getCenter();
+    if (
+      center.lng !== viewState.longitude ||
+      center.lat !== viewState.latitude ||
+      map.getZoom() !== viewState.zoom
+    )
+      map.jumpTo({ center: [viewState.longitude, viewState.latitude], zoom: viewState.zoom });
+  }, [map, viewState.latitude, viewState.longitude, viewState.zoom]);
+
   return (
     <>
       <MapLibreMap
-        initialViewState={initialViewState}
+        initialViewState={viewState}
         mapStyle={mapStyle}
         style={{ position: "fixed", inset: 0 }}
         minZoom={minZoom}
@@ -138,9 +153,15 @@ export const Map = ({
           setZoom(viewState.zoom);
           setBounds(geographicBoundsFor(target));
         }}
-        onMoveEnd={({ target, originalEvent }) =>
-          originalEvent && onSettledBoundsChange(geographicBoundsFor(target))
-        }
+        onMoveEnd={({ target }) => {
+          const center = target.getCenter();
+          onSettledBoundsChange(geographicBoundsFor(target));
+          onSettledViewStateChange({
+            longitude: center.lng,
+            latitude: center.lat,
+            zoom: target.getZoom(),
+          });
+        }}
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
             for (const { addStyleImages } of contributionsRef.current) {

@@ -5,18 +5,19 @@ import type {
   LineLayerSpecification,
   SymbolLayerSpecification,
 } from "maplibre-gl";
-import type { LayerZ, PhysicalLayer } from "../Map";
+import type { LayerZ, MapContribution, PhysicalLayer } from "../Map";
+import type { StreetsState } from "../map_state";
 import {
   DETAIL_FADE,
   DETAIL_FADE_IN,
   DETAIL_LABEL_SIZE,
   interpolateOnZoom,
   type LayerDefinition,
-  type LayerOfKind,
   LegendRows,
   PROTOMAPS_SOURCES,
   protomapsLayer,
   ROUTE_WIDTH_STOPS,
+  type StateChange,
 } from "./shared";
 
 const STREET_COLOR = "#d5d5d5";
@@ -287,103 +288,113 @@ const paintedBikeOneWayLayer: PhysicalLayer = {
   },
 };
 
-export const streetsDefinition: LayerDefinition<LayerOfKind<"streets">> = {
-  label: "Streets",
-  mapContribution: ({ bikeLanesVisible }) => ({
-    sources: {
-      ...PROTOMAPS_SOURCES,
-      [ROAD_SOURCE_ID]: { type: "geojson", data: "/data/osm_roads.geojson" },
-    },
-    physicalLayers: [
-      streetLayer("roads_minor", streetsOfKind("minor_road")),
-      streetLayer("roads_major", streetsOfKind("major_road")),
-      streetLayer("roads_highway", streetsOfKind("highway")),
-      streetLayer("roads_link", ["get", "is_link"]),
-      {
-        z: "street",
-        style: {
-          id: "street_one_way",
-          type: "symbol",
-          source: ROAD_SOURCE_ID,
-          minzoom: DETAIL_FADE_IN,
-          // A bike lane that goes in the direction of the traffic shows the direction of the
-          // street. Then the street does not show a caret. If the bike lanes are not visible,
-          // the street shows a caret.
-          filter: [
-            "all",
-            // The bike lane features in this source have no street properties.
-            ["==", ["get", "role"], "street"],
-            ["get", "oneway"],
-            bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
-          ],
-          layout: {
-            "symbol-placement": "line",
-            // no rotation: each street's geometry runs in its direction of travel
-            "icon-image": "street_caret",
-            "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
-            "symbol-spacing": 100,
-          },
-          paint: { "icon-opacity": DETAIL_FADE },
+const streetsMapContribution = ({ bikeLanesVisible }: StreetsState): MapContribution => ({
+  sources: {
+    ...PROTOMAPS_SOURCES,
+    [ROAD_SOURCE_ID]: { type: "geojson", data: "/data/osm_roads.geojson" },
+  },
+  physicalLayers: [
+    streetLayer("roads_minor", streetsOfKind("minor_road")),
+    streetLayer("roads_major", streetsOfKind("major_road")),
+    streetLayer("roads_highway", streetsOfKind("highway")),
+    streetLayer("roads_link", ["get", "is_link"]),
+    {
+      z: "street",
+      style: {
+        id: "street_one_way",
+        type: "symbol",
+        source: ROAD_SOURCE_ID,
+        minzoom: DETAIL_FADE_IN,
+        // A bike lane that goes in the direction of the traffic shows the direction of the
+        // street. Then the street does not show a caret. If the bike lanes are not visible,
+        // the street shows a caret.
+        filter: [
+          "all",
+          // The bike lane features in this source have no street properties.
+          ["==", ["get", "role"], "street"],
+          ["get", "oneway"],
+          bikeLanesVisible ? ["!", ["get", "bike_lane_with_traffic"]] : true,
+        ],
+        layout: {
+          "symbol-placement": "line",
+          // no rotation: each street's geometry runs in its direction of travel
+          "icon-image": "street_caret",
+          "icon-size": interpolateOnZoom(CARET_SIZE_STOPS),
+          "symbol-spacing": 100,
         },
+        paint: { "icon-opacity": DETAIL_FADE },
       },
-      ...(bikeLanesVisible
-        ? [...bikeLaneLayers, protectedCaretStreamLayer, paintedBikeOneWayLayer]
-        : []),
-      streetLabelLayer("roads_labels_minor", ["==", ["get", "kind"], "minor_road"]),
-      streetLabelLayer("roads_labels_major", [
-        "in",
-        ["get", "kind"],
-        ["literal", ["major_road", "highway"]],
-      ]),
-    ],
-    addStyleImages: (map) => {
-      if (!map.hasImage("street_caret"))
-        map.addImage(
-          "street_caret",
-          drawCaret({ color: STREET_COLOR, strokePixels: CARET_STROKE_PIXELS }),
-          { pixelRatio: CARET_RESOLUTION },
-        );
-      if (!map.hasImage("bike_caret"))
-        map.addImage(
-          "bike_caret",
-          drawCaret({ color: bikeColor, strokePixels: CARET_STROKE_PIXELS }),
-          { pixelRatio: CARET_RESOLUTION },
-        );
-      if (!map.hasImage("bike_caret_stream"))
-        map.addImage(
-          "bike_caret_stream",
-          drawCaret({
-            color: bikeColor,
-            strokePixels: CARET_STREAM_STROKE_PIXELS,
-            lengthPixels: CARET_STREAM_SPACING_PIXELS,
-          }),
-          { pixelRatio: CARET_RESOLUTION },
-        );
     },
-  }),
-  Controls: ({ layer, disabled, onChange }) => (
-    <div style={{ display: "grid", gap: 3 }}>
-      <label>
-        <input
-          type="checkbox"
-          checked={layer.bikeLanesVisible}
-          disabled={disabled}
-          onChange={({ target }) => onChange({ ...layer, bikeLanesVisible: target.checked })}
-        />{" "}
-        Bike lanes
-      </label>
-      {layer.bikeLanesVisible ? (
-        <div style={{ display: "grid", gap: 3, marginLeft: 22 }}>
-          <LegendRows
-            items={[
-              { label: "Protected (two-way)", legend: protectedTwoWayLegend },
-              { label: "Protected (one-way)", legend: protectedOneWayLegend },
-              { label: "Unprotected", legend: unprotectedBikeLaneLegend },
-            ]}
-          />
-          <div>Shared lanes not shown.</div>
-        </div>
-      ) : null}
-    </div>
-  ),
+    ...(bikeLanesVisible
+      ? [...bikeLaneLayers, protectedCaretStreamLayer, paintedBikeOneWayLayer]
+      : []),
+    streetLabelLayer("roads_labels_minor", ["==", ["get", "kind"], "minor_road"]),
+    streetLabelLayer("roads_labels_major", [
+      "in",
+      ["get", "kind"],
+      ["literal", ["major_road", "highway"]],
+    ]),
+  ],
+  addStyleImages: (map) => {
+    if (!map.hasImage("street_caret"))
+      map.addImage(
+        "street_caret",
+        drawCaret({ color: STREET_COLOR, strokePixels: CARET_STROKE_PIXELS }),
+        { pixelRatio: CARET_RESOLUTION },
+      );
+    if (!map.hasImage("bike_caret"))
+      map.addImage(
+        "bike_caret",
+        drawCaret({ color: bikeColor, strokePixels: CARET_STROKE_PIXELS }),
+        { pixelRatio: CARET_RESOLUTION },
+      );
+    if (!map.hasImage("bike_caret_stream"))
+      map.addImage(
+        "bike_caret_stream",
+        drawCaret({
+          color: bikeColor,
+          strokePixels: CARET_STREAM_STROKE_PIXELS,
+          lengthPixels: CARET_STREAM_SPACING_PIXELS,
+        }),
+        { pixelRatio: CARET_RESOLUTION },
+      );
+  },
+});
+
+const StreetsControls = ({
+  state,
+  onChange,
+}: {
+  state: StreetsState;
+  onChange: (change: StateChange<StreetsState>) => void;
+}) => (
+  <div style={{ display: "grid", gap: 3 }}>
+    <label>
+      <input
+        type="checkbox"
+        checked={state.bikeLanesVisible}
+        disabled={!state.enabled}
+        onChange={({ target }) => onChange({ ...state, bikeLanesVisible: target.checked })}
+      />{" "}
+      Bike lanes
+    </label>
+    {state.bikeLanesVisible ? (
+      <div style={{ display: "grid", gap: 3, marginLeft: 22 }}>
+        <LegendRows
+          items={[
+            { label: "Protected (two-way)", legend: protectedTwoWayLegend },
+            { label: "Protected (one-way)", legend: protectedOneWayLegend },
+            { label: "Unprotected", legend: unprotectedBikeLaneLegend },
+          ]}
+        />
+        <div>Shared lanes not shown.</div>
+      </div>
+    ) : null}
+  </div>
+);
+
+export const streetsLayer: LayerDefinition<StreetsState> = {
+  label: "Streets",
+  contribution: streetsMapContribution,
+  renderControls: (props) => <StreetsControls {...props} />,
 };

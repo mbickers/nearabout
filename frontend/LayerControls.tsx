@@ -1,75 +1,50 @@
-import { type ComponentType, useCallback } from "react";
-import type { Layer } from "./layer";
-import { LAYER_DEFINITIONS } from "./layers";
-import {
-  type LayerChange,
-  type LayerComponentProps,
-  type LayerKind,
-  MAP_FONT,
-} from "./layers/shared";
+import type { ReactNode } from "react";
+import { type LayerControlContext, MAP_FONT } from "./layers/shared";
+import type { MapContribution } from "./Map";
 import type { GeographicBounds } from "./map_bounds";
+import type { LayerKey } from "./map_state";
 
-type ChangeLayer = (kind: LayerKind, change: LayerChange<Layer>) => void;
+export type Layer = {
+  key: LayerKey;
+  label: string;
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  contribution?: MapContribution;
+  renderControls: (context: LayerControlContext) => ReactNode;
+};
 
 const LayerControl = ({
+  label,
   enabled,
-  layer,
-  visibleMapBounds,
-  entireSearchBounds,
-  onLayerChange,
-  onLayerEnabledChange,
+  onEnabledChange,
+  children,
 }: {
+  label: string;
   enabled: boolean;
-  layer: Layer;
-  visibleMapBounds?: GeographicBounds;
-  entireSearchBounds: GeographicBounds;
-  onLayerChange: ChangeLayer;
-  onLayerEnabledChange: (kind: LayerKind, enabled: boolean) => void;
-}) => {
-  const definition = LAYER_DEFINITIONS[layer.kind];
-  const Controls = definition.Controls as ComponentType<LayerComponentProps<Layer>> | undefined;
-  const changeLayer = useCallback(
-    (change: LayerChange<Layer>) => onLayerChange(layer.kind, change),
-    [layer.kind, onLayerChange],
-  );
-
-  return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={({ target }) => onLayerEnabledChange(layer.kind, target.checked)}
-        />
-        {definition.label}
-      </label>
-      <div style={{ display: "grid", gap: 4, marginLeft: 22 }}>
-        {Controls ? (
-          <Controls
-            layer={layer}
-            disabled={!enabled}
-            visibleMapBounds={visibleMapBounds}
-            entireSearchBounds={entireSearchBounds}
-            onChange={changeLayer}
-          />
-        ) : null}
-      </div>
-    </div>
-  );
-};
+  onEnabledChange: (enabled: boolean) => void;
+  children: ReactNode;
+}) => (
+  <div style={{ display: "grid", gap: 4 }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={({ target }) => onEnabledChange(target.checked)}
+      />
+      {label}
+    </label>
+    <div style={{ display: "grid", gap: 4, marginLeft: 22 }}>{children}</div>
+  </div>
+);
 
 export const LayerControls = ({
   layers,
   visibleMapBounds,
   entireSearchBounds,
-  onLayerChange,
-  onLayerEnabledChange,
 }: {
-  layers: [enabled: boolean, layer: Layer][];
+  layers: Layer[];
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
-  onLayerChange: ChangeLayer;
-  onLayerEnabledChange: (kind: LayerKind, enabled: boolean) => void;
 }) => (
   <div
     style={{
@@ -85,16 +60,10 @@ export const LayerControls = ({
       overflowY: "auto",
     }}
   >
-    {layers.map(([enabled, layer]) => (
-      <LayerControl
-        key={layer.kind}
-        enabled={enabled}
-        layer={layer}
-        visibleMapBounds={visibleMapBounds}
-        entireSearchBounds={entireSearchBounds}
-        onLayerChange={onLayerChange}
-        onLayerEnabledChange={onLayerEnabledChange}
-      />
+    {layers.map(({ key, label, enabled, onEnabledChange, renderControls }) => (
+      <LayerControl key={key} label={label} enabled={enabled} onEnabledChange={onEnabledChange}>
+        {renderControls({ visibleMapBounds, entireSearchBounds })}
+      </LayerControl>
     ))}
   </div>
 );
