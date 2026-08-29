@@ -7,10 +7,10 @@ import { pointsOfInterestLayer, searchStateForItems } from "./layers/points_of_i
 import type { LayerDefinition, StateChange } from "./layers/shared";
 import { streetsLayer } from "./layers/streets";
 import { subwayLayer } from "./layers/subway";
+import { useLocalStorageState } from "./local_storage_state";
 import { Map } from "./Map";
 import { type GeographicBounds, movementBoundsWithMargin, NYC_BOUNDS } from "./map_bounds";
 import { LAYER_KEYS, type LayerKey, type LayerStates, type MapState } from "./map_state";
-import { useUrlState } from "./url_state";
 
 type LayerDefinitions = { [Key in LayerKey]: LayerDefinition<LayerStates[Key]> };
 
@@ -56,7 +56,7 @@ const bindLayer = <Key extends LayerKey>({
 
 export const App = () => {
   const [visibleMapBounds, setVisibleMapBounds] = useState<GeographicBounds>();
-  const [mapState, setMapState] = useUrlState({
+  const [mapState, setMapState] = useLocalStorageState({
     view: { longitude: -73.98, latitude: 40.74, zoom: 11 },
     layers: {
       geography: { enabled: true, parksVisible: true },
