@@ -19,7 +19,8 @@
     "pmtiles": "^4.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-map-gl": "^8.1.2"
+    "react-map-gl": "^8.1.2",
+    "zod": "^4.5.2"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",

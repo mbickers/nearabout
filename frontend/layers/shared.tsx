@@ -4,8 +4,7 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
 } from "maplibre-gl";
-import type { ComponentType, ReactNode } from "react";
-import type { Layer } from "../layer";
+import type { ReactNode } from "react";
 import type { LayerZ, MapContribution } from "../Map";
 import type { GeographicBounds } from "../map_bounds";
 
@@ -67,29 +66,23 @@ export const PROTOMAPS_SOURCES: MapContribution["sources"] = {
   },
 };
 
-export type LayerKind = Layer["kind"];
+export type StateChange<State> = State | ((state: State) => State);
 
-export type LayerOfKind<Kind extends LayerKind> = Extract<Layer, { kind: Kind }>;
-
-export type LayerChange<CurrentLayer extends Layer> =
-  | CurrentLayer
-  | ((layer: CurrentLayer) => CurrentLayer);
-
-export type LayerComponentProps<CurrentLayer extends Layer> = {
-  layer: CurrentLayer;
-  disabled: boolean;
+export type LayerControlContext = {
   visibleMapBounds?: GeographicBounds;
   entireSearchBounds: GeographicBounds;
-  onChange: (change: LayerChange<CurrentLayer>) => void;
 };
 
-export type LayerDefinition<CurrentLayer extends Layer> = {
+export type LayerControlProps<State> = {
+  state: State;
+  onChange: (change: StateChange<State>) => void;
+  context: LayerControlContext;
+};
+
+export type LayerDefinition<State> = {
   label: string;
-  mapContribution: (
-    layer: CurrentLayer,
-    onChange: (change: LayerChange<CurrentLayer>) => void,
-  ) => MapContribution;
-  Controls?: ComponentType<LayerComponentProps<CurrentLayer>>;
+  contribution: (state: State) => MapContribution;
+  renderControls: (props: LayerControlProps<State>) => ReactNode;
 };
 
 export const circleLegend = (paint: NonNullable<CircleLayerSpecification["paint"]>) => {

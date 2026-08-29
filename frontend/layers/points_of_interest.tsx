@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Marker } from "react-map-gl/maplibre";
-import type { PointOfInterest } from "../layer";
+import type { MapContribution } from "../Map";
+import type { PointOfInterest, PointsOfInterestState } from "../map_state";
 import { searchLocations } from "./location_search";
 import {
   completedEntireCitySearch,
@@ -13,9 +15,7 @@ import {
   selectedLocationSearchResult,
   transitionLocationSearch,
 } from "./point_of_interest_search";
-import type { LayerChange, LayerComponentProps, LayerDefinition, LayerOfKind } from "./shared";
-
-type PointsOfInterestLayer = LayerOfKind<"points_of_interest">;
+import type { LayerControlContext, LayerDefinition, StateChange } from "./shared";
 
 const emptyPointOfInterestRow = (): PointOfInterestSearchRow => ({
   id: crypto.randomUUID(),
@@ -34,7 +34,7 @@ const normalizePointOfInterestRows = (rows: PointOfInterestSearchRow[], editedRo
   return [...nonemptyRows, emptyRow];
 };
 
-const searchStateForItems = (items: PointOfInterest[]): PointsOfInterestSearchState => ({
+export const searchStateForItems = (items: PointOfInterest[]): PointsOfInterestSearchState => ({
   viewRequestSourceId: crypto.randomUUID(),
   nextRequestId: 0,
   rows: normalizePointOfInterestRows(
@@ -71,16 +71,6 @@ const pointOfInterestItemsForRows = (rows: PointOfInterestSearchRow[]): PointOfI
         ]
       : [];
   });
-
-const layerWithSearchRows = (
-  layer: PointsOfInterestLayer,
-  searchState: PointsOfInterestSearchState,
-  rows: PointOfInterestSearchRow[],
-): PointsOfInterestLayer => ({
-  ...layer,
-  items: pointOfInterestItemsForRows(rows),
-  searchState: { ...searchState, rows },
-});
 
 const transitionSearchRow = (
   rows: PointOfInterestSearchRow[],
@@ -162,40 +152,50 @@ const PointOfInterestMarker = ({
 );
 
 const PointsOfInterestControls = ({
-  layer,
-  disabled,
-  visibleMapBounds,
-  entireSearchBounds,
+  state,
+  searchState,
+  context: { visibleMapBounds, entireSearchBounds },
   onChange,
-}: LayerComponentProps<PointsOfInterestLayer>) => {
-  const [initialSearchState] = useState(
-    () => layer.searchState ?? searchStateForItems(layer.items),
-  );
-  const searchState = layer.searchState ?? initialSearchState;
+  onSearchStateChange,
+}: {
+  state: PointsOfInterestState;
+  searchState: PointsOfInterestSearchState;
+  context: LayerControlContext;
+  onChange: (change: StateChange<PointsOfInterestState>) => void;
+  onSearchStateChange: Dispatch<SetStateAction<PointsOfInterestSearchState>>;
+}) => {
   const rows = searchState.rows;
   const visibleMapBoundsRef = useRef(visibleMapBounds);
   visibleMapBoundsRef.current = visibleMapBounds;
 
   useEffect(() => {
-    if (layer.searchState) return;
-
-    onChange((currentLayer) =>
-      currentLayer.searchState
-        ? currentLayer
-        : layerWithSearchRows(currentLayer, initialSearchState, initialSearchState.rows),
+    const items = pointOfInterestItemsForRows(rows);
+    onChange((currentState) =>
+      currentState.items.length === items.length &&
+      currentState.items.every((item, index) => {
+        const nextItem = items[index];
+        return (
+          item.id === nextItem.id &&
+          item.label === nextItem.label &&
+          item.address === nextItem.address &&
+          item.longitude === nextItem.longitude &&
+          item.latitude === nextItem.latitude
+        );
+      })
+        ? currentState
+        : { ...currentState, items },
     );
-  }, [initialSearchState, layer.searchState, onChange]);
+  }, [onChange, rows]);
 
   const updateRows = useCallback(
     (update: (rows: PointOfInterestSearchRow[]) => PointOfInterestSearchRow[]) =>
-      onChange((currentLayer) => {
-        const currentSearchState = currentLayer.searchState ?? initialSearchState;
+      onSearchStateChange((currentSearchState) => {
         const rows = update(currentSearchState.rows);
-        if (currentLayer.searchState && rows === currentSearchState.rows) return currentLayer;
-
-        return layerWithSearchRows(currentLayer, currentSearchState, rows);
+        return rows === currentSearchState.rows
+          ? currentSearchState
+          : { ...currentSearchState, rows };
       }),
-    [initialSearchState, onChange],
+    [onSearchStateChange],
   );
 
   const transitionRowSearch = useCallback(
@@ -227,7 +227,7 @@ const PointsOfInterestControls = ({
   }, [visibleMapBounds, updateRows]);
 
   useEffect(() => {
-    if (disabled) return;
+    if (!state.enabled) return;
 
     const rowToSearch = rows.find(
       ({ search }) =>
@@ -240,31 +240,26 @@ const PointsOfInterestControls = ({
     const { scope } = rowToSearch.search.state;
     const requestId = searchState.nextRequestId + 1;
     const timeout = window.setTimeout(() => {
-      onChange((currentLayer) => {
-        const currentSearchState = currentLayer.searchState ?? initialSearchState;
+      onSearchStateChange((currentSearchState) => {
         const nextRows = transitionSearchRow(currentSearchState.rows, rowToSearch.id, {
           type: "search_started",
           requestId,
         });
         return {
-          ...layerWithSearchRows(currentLayer, currentSearchState, nextRows),
-          searchState: {
-            ...currentSearchState,
-            nextRequestId: Math.max(currentSearchState.nextRequestId, requestId),
-            rows: nextRows,
-          },
+          ...currentSearchState,
+          nextRequestId: Math.max(currentSearchState.nextRequestId, requestId),
+          rows: nextRows,
         };
       });
       void runLocationSearch(rowToSearch.id, query, scope, requestId);
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [
-    disabled,
-    initialSearchState,
-    onChange,
+    onSearchStateChange,
     rows,
     runLocationSearch,
     searchState.nextRequestId,
+    state.enabled,
     visibleMapBounds,
   ]);
 
@@ -295,7 +290,7 @@ const PointsOfInterestControls = ({
                   type="text"
                   placeholder="Address"
                   value={row.search.query}
-                  disabled={disabled}
+                  disabled={!state.enabled}
                   onChange={({ target }) =>
                     updateRows((currentRows) =>
                       normalizePointOfInterestRows(
@@ -315,7 +310,7 @@ const PointsOfInterestControls = ({
                   type="text"
                   placeholder={row.search.query || "Label"}
                   value={row.label}
-                  disabled={disabled}
+                  disabled={!state.enabled}
                   onChange={({ target }) =>
                     updateRows((currentRows) =>
                       normalizePointOfInterestRows(
@@ -334,7 +329,7 @@ const PointsOfInterestControls = ({
                   type="button"
                   aria-label={`Delete ${row.label || row.search.query || "empty point of interest"}`}
                   title="Delete"
-                  disabled={disabled}
+                  disabled={!state.enabled}
                   onClick={() =>
                     updateRows((currentRows) =>
                       normalizePointOfInterestRows(currentRows.filter(({ id }) => id !== row.id)),
@@ -347,7 +342,7 @@ const PointsOfInterestControls = ({
                     border: 0,
                     background: "transparent",
                     color: "inherit",
-                    cursor: disabled ? "default" : "pointer",
+                    cursor: state.enabled ? "pointer" : "default",
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
@@ -370,7 +365,7 @@ const PointsOfInterestControls = ({
                   Nothing found on the visible map.{" "}
                   <button
                     type="button"
-                    disabled={disabled}
+                    disabled={!state.enabled}
                     onClick={() =>
                       transitionRowSearch(row.id, {
                         type: "search_requested",
@@ -399,65 +394,96 @@ const PointsOfInterestControls = ({
   );
 };
 
-const selectSearchResult = (
-  onChange: (change: LayerChange<PointsOfInterestLayer>) => void,
-  rowId: string,
-  result: LocationSearchResult,
-) => {
-  onChange((layer) => {
-    if (!layer.searchState) return layer;
-
-    const rows = transitionSearchRow(layer.searchState.rows, rowId, {
+const selectSearchResult = ({
+  onSearchStateChange,
+  rowId,
+  result,
+}: {
+  onSearchStateChange: Dispatch<SetStateAction<PointsOfInterestSearchState>>;
+  rowId: string;
+  result: LocationSearchResult;
+}) => {
+  onSearchStateChange((searchState) => {
+    const rows = transitionSearchRow(searchState.rows, rowId, {
       type: "result_selected",
       result,
     });
-    return layerWithSearchRows(layer, layer.searchState, rows);
+    return rows === searchState.rows ? searchState : { ...searchState, rows };
   });
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 };
 
-export const pointsOfInterestDefinition: LayerDefinition<PointsOfInterestLayer> = {
-  label: "Points of interest",
-  mapContribution: (layer, onChange) => {
-    const rows = layer.searchState?.rows ?? [];
-    const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
-    const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
-    const completedSearch = rows
-      .map(({ search }) => completedEntireCitySearch(search.state))
-      .filter((search): search is NonNullable<typeof search> => search !== undefined)
-      .sort((first, second) => second.requestId - first.requestId)[0];
+const pointsOfInterestMapContribution = ({
+  state,
+  searchState,
+  onSearchStateChange,
+}: {
+  state: PointsOfInterestState;
+  searchState: PointsOfInterestSearchState;
+  onSearchStateChange: Dispatch<SetStateAction<PointsOfInterestSearchState>>;
+}): MapContribution => {
+  const rows = searchState.rows;
+  const activeSearchRow = rows.find(({ search }) => locationSearchResults(search.state));
+  const results = activeSearchRow && locationSearchResults(activeSearchRow.search.state);
+  const completedSearch = rows
+    .map(({ search }) => completedEntireCitySearch(search.state))
+    .filter((search): search is NonNullable<typeof search> => search !== undefined)
+    .sort((first, second) => second.requestId - first.requestId)[0];
 
-    return {
-      sources: {},
-      physicalLayers: [],
-      markerElements:
-        activeSearchRow && results
-          ? results.map((result) => (
-              <PointOfInterestMarker
-                key={`${activeSearchRow.id}:${result.latitude},${result.longitude}:${result.label}`}
-                {...result}
-                onClick={() => selectSearchResult(onChange, activeSearchRow.id, result)}
-              />
-            ))
-          : layer.items.map(({ id, label, longitude, latitude }) => (
-              <PointOfInterestMarker
-                key={id}
-                label={label}
-                longitude={longitude}
-                latitude={latitude}
-              />
-            )),
-      ...(completedSearch && layer.searchState
-        ? {
-            viewRequest: {
-              id: `${layer.searchState.viewRequestSourceId}:${completedSearch.requestId}`,
-              points: completedSearch.results,
-              paddingFraction: 0.1,
-              maxZoom: 14,
-            },
-          }
-        : {}),
-    };
-  },
-  Controls: PointsOfInterestControls,
+  return {
+    sources: {},
+    physicalLayers: [],
+    markerElements:
+      activeSearchRow && results
+        ? results.map((result) => (
+            <PointOfInterestMarker
+              key={`${activeSearchRow.id}:${result.latitude},${result.longitude}:${result.label}`}
+              {...result}
+              onClick={() =>
+                selectSearchResult({
+                  onSearchStateChange,
+                  rowId: activeSearchRow.id,
+                  result,
+                })
+              }
+            />
+          ))
+        : state.items.map(({ id, label, longitude, latitude }) => (
+            <PointOfInterestMarker
+              key={id}
+              label={label}
+              longitude={longitude}
+              latitude={latitude}
+            />
+          )),
+    ...(completedSearch
+      ? {
+          viewRequest: {
+            id: `${searchState.viewRequestSourceId}:${completedSearch.requestId}`,
+            points: completedSearch.results,
+            paddingFraction: 0.1,
+            maxZoom: 14,
+          },
+        }
+      : {}),
+  };
 };
+
+export const pointsOfInterestLayer = ({
+  searchState,
+  onSearchStateChange,
+}: {
+  searchState: PointsOfInterestSearchState;
+  onSearchStateChange: Dispatch<SetStateAction<PointsOfInterestSearchState>>;
+}): LayerDefinition<PointsOfInterestState> => ({
+  label: "Points of interest",
+  contribution: (state) =>
+    pointsOfInterestMapContribution({ state, searchState, onSearchStateChange }),
+  renderControls: (props) => (
+    <PointsOfInterestControls
+      {...props}
+      searchState={searchState}
+      onSearchStateChange={onSearchStateChange}
+    />
+  ),
+});

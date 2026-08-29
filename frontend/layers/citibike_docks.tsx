@@ -1,11 +1,12 @@
 import type { CircleLayerSpecification } from "maplibre-gl";
+import type { MapContribution } from "../Map";
+import type { CitibikeDocksState } from "../map_state";
 import {
   circleLegend,
   DETAIL_FADE,
   DETAIL_FADE_IN,
   interpolateOnZoom,
   type LayerDefinition,
-  type LayerOfKind,
   LegendRows,
 } from "./shared";
 
@@ -21,37 +22,41 @@ const dockMarkerPaint = {
   "circle-stroke-opacity": DETAIL_FADE,
 } satisfies CircleLayerSpecification["paint"];
 
-export const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = {
-  label: "Citi Bike docks",
-  mapContribution: () => ({
-    sources: {
-      citibike_docks: {
-        type: "geojson",
-        data: "/data/citibike_docks.geojson",
-        attribution: '<a href="https://citibikenyc.com/system-data">Citi Bike</a>',
+const citibikeDocksMapContribution = (): MapContribution => ({
+  sources: {
+    citibike_docks: {
+      type: "geojson",
+      data: "/data/citibike_docks.geojson",
+      attribution: '<a href="https://citibikenyc.com/system-data">Citi Bike</a>',
+    },
+  },
+  physicalLayers: [
+    {
+      z: "feature",
+      style: {
+        id: "citibike_docks",
+        type: "circle",
+        source: "citibike_docks",
+        minzoom: DETAIL_FADE_IN,
+        paint: dockMarkerPaint,
       },
     },
-    physicalLayers: [
+  ],
+});
+
+const CitibikeDocksControls = () => (
+  <LegendRows
+    items={[
       {
-        z: "feature",
-        style: {
-          id: "citibike_docks",
-          type: "circle",
-          source: "citibike_docks",
-          minzoom: DETAIL_FADE_IN,
-          paint: dockMarkerPaint,
-        },
+        label: "Dock",
+        legend: circleLegend(dockMarkerPaint),
       },
-    ],
-  }),
-  Controls: () => (
-    <LegendRows
-      items={[
-        {
-          label: "Dock",
-          legend: circleLegend(dockMarkerPaint),
-        },
-      ]}
-    />
-  ),
+    ]}
+  />
+);
+
+export const citibikeDocksLayer: LayerDefinition<CitibikeDocksState> = {
+  label: "Citi Bike docks",
+  contribution: citibikeDocksMapContribution,
+  renderControls: () => <CitibikeDocksControls />,
 };
