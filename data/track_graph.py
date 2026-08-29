@@ -15,7 +15,18 @@ class Point(NamedTuple):
 class TrackPath:
     positions: Sequence[Point]
     trunk: str
-    shape: str
+    shapes: frozenset[str]
+
+
+def _deduplicated_track_paths(track_paths: Sequence[TrackPath]) -> tuple[TrackPath, ...]:
+    shapes_by_geometry_and_trunk: dict[tuple[tuple[Point, ...], str], set[str]] = {}
+    for path in track_paths:
+        key = (tuple(path.positions), path.trunk)
+        shapes_by_geometry_and_trunk.setdefault(key, set()).update(path.shapes)
+    return tuple(
+        TrackPath(positions=positions, trunk=trunk, shapes=frozenset(shapes))
+        for (positions, trunk), shapes in shapes_by_geometry_and_trunk.items()
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -269,6 +280,7 @@ def build_track_graph(
 ) -> TrackGraph:
     """Build a graph by merging nearby parallel track paths."""
 
+    track_paths = _deduplicated_track_paths(track_paths)
     nearby_vertices = NearbyParallelDirectedPointMap[int](
         max_radius=merge_radius,
         max_heading_difference_rad=merge_heading_tolerance_rad,
@@ -313,7 +325,9 @@ def build_track_graph(
         for first_vertex_id, second_vertex_id in itertools.pairwise(shape_vertex_ids):
             segment = _ordered_vertex_ids(first_vertex_id, second_vertex_id)
             trunks_by_segment[segment].add(track_path.trunk)
-            shapes_by_segment[segment].add((track_path.trunk, track_path.shape))
+            shapes_by_segment[segment].update(
+                (track_path.trunk, shape) for shape in track_path.shapes
+            )
 
     compressed_edges = _compressed_edges(vertex_positions, trunks_by_segment, shapes_by_segment)
     trunks_by_vertex_id: dict[int, set[str]] = defaultdict(set)

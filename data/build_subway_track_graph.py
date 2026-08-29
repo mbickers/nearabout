@@ -62,7 +62,7 @@ def _project_gtfs_track_paths(gtfs: GtfsData) -> ProjectedTrackPaths:
                 projection.to_meters(position) for position in gtfs.shapes[shape_id].positions
             ),
             trunk=trunk,
-            shape=shape_id,
+            shapes=frozenset({shape_id}),
         )
         for shape_id, trunk in sorted(unique_shape_ids_and_trunks)
     )
