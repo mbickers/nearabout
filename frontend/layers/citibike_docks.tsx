@@ -1,6 +1,7 @@
 import type { CircleLayerSpecification } from "maplibre-gl";
 import {
   circleLegend,
+  DETAIL_FADE,
   DETAIL_FADE_IN,
   interpolateOnZoom,
   type LayerDefinition,
@@ -16,6 +17,8 @@ const dockMarkerPaint = {
   "circle-color": "#0067b1",
   "circle-stroke-color": "#ffffff",
   "circle-stroke-width": 0.75,
+  "circle-opacity": DETAIL_FADE,
+  "circle-stroke-opacity": DETAIL_FADE,
 } satisfies CircleLayerSpecification["paint"];
 
 export const citibikeDocksDefinition: LayerDefinition<LayerOfKind<"citibike_docks">> = {
