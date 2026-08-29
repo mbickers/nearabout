@@ -1,37 +1,37 @@
-export type GeographicBounds = {
+interface GeographicBounds {
   west: number;
   south: number;
   east: number;
   north: number;
-};
+}
 
-export type SearchRecord = [
+type SearchRecord = [
   label: string,
   longitude: number,
   latitude: number,
   normalizedVariants: string[],
 ];
 
-export type LocationSearchIndex = {
+interface LocationSearchIndex {
   records: SearchRecord[];
   postings: Record<string, number[]>;
-};
+}
 
-export type LocationSearchManifest = {
+interface LocationSearchManifest {
   bucketCount: number;
   namedCounts: Record<string, number>;
-};
+}
 
-export type LocationSearchBucket = {
+interface LocationSearchBucket {
   addresses: Record<string, SearchRecord[]>;
   names: Record<string, SearchRecord[]>;
-};
+}
 
-export type LocationSearchResult = {
+interface LocationSearchResult {
   label: string;
   longitude: number;
   latitude: number;
-};
+}
 
 const TOKEN_REPLACEMENTS: Record<string, string> = {
   avenue: "ave",
@@ -70,8 +70,7 @@ const TOKEN_REPLACEMENTS: Record<string, string> = {
   west: "w",
   ninth: "9",
 };
-
-export const normalizeLocationSearchText = (value: string): string =>
+const normalizeLocationSearchText = (value: string): string =>
   value
     // Split characters such as "é" into "e" and a combining accent.
     .normalize("NFKD")
@@ -91,13 +90,13 @@ export const normalizeLocationSearchText = (value: string): string =>
     .map((token) => TOKEN_REPLACEMENTS[token] ?? token)
     .join(" ");
 
-export const locationSearchTokens = (normalizedText: string): string[] =>
+const locationSearchTokens = (normalizedText: string): string[] =>
   normalizedText.split(" ").filter(Boolean);
 
-export const locationSearchPostingKey = (token: string): string =>
+const locationSearchPostingKey = (token: string): string =>
   token.length < 3 ? token : Array.from(token).slice(0, 3).join("");
 
-export const locationSearchBucket = (key: string, bucketCount: number): number => {
+const locationSearchBucket = (key: string, bucketCount: number): number => {
   let hash = 2166136261;
   for (const character of key) {
     hash ^= character.codePointAt(0) ?? 0;
@@ -106,7 +105,7 @@ export const locationSearchBucket = (key: string, bucketCount: number): number =
   return (hash >>> 0) % bucketCount;
 };
 
-export const buildLocationSearchIndex = (records: SearchRecord[]): LocationSearchIndex => {
+const buildLocationSearchIndex = (records: SearchRecord[]): LocationSearchIndex => {
   const sortedRecords = records.toSorted(
     ([labelA, longitudeA, latitudeA], [labelB, longitudeB, latitudeB]) =>
       labelA.localeCompare(labelB) || longitudeA - longitudeB || latitudeA - latitudeB,
@@ -160,7 +159,7 @@ const isInside = (longitude: number, latitude: number, bounds: GeographicBounds)
   latitude >= bounds.south &&
   latitude <= bounds.north;
 
-export const searchLocationIndex = ({
+const searchLocationIndex = ({
   index,
   query,
   bounds,
@@ -190,7 +189,7 @@ export const searchLocationIndex = ({
   });
 };
 
-export const searchLocationRecords = ({
+const searchLocationRecords = ({
   records,
   normalizedQuery,
   bounds,
@@ -226,4 +225,22 @@ export const searchLocationRecords = ({
     if (results.length === limit) break;
   }
   return results;
+};
+
+export type {
+  GeographicBounds,
+  LocationSearchBucket,
+  LocationSearchIndex,
+  LocationSearchManifest,
+  LocationSearchResult,
+  SearchRecord,
+};
+export {
+  buildLocationSearchIndex,
+  locationSearchBucket,
+  locationSearchPostingKey,
+  locationSearchTokens,
+  normalizeLocationSearchText,
+  searchLocationIndex,
+  searchLocationRecords,
 };

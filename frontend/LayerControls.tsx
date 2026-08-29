@@ -4,14 +4,14 @@ import type { MapContribution } from "./Map";
 import type { GeographicBounds } from "./map_bounds";
 import type { LayerKey } from "./map_state";
 
-export type Layer = {
+interface Layer {
   key: LayerKey;
   label: string;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
   contribution?: MapContribution;
   renderControls: (context: LayerControlContext) => ReactNode;
-};
+}
 
 const LayerControl = ({
   label,
@@ -37,7 +37,7 @@ const LayerControl = ({
   </div>
 );
 
-export const LayerControls = ({
+const LayerControls = ({
   layers,
   visibleMapBounds,
   entireSearchBounds,
@@ -67,3 +67,6 @@ export const LayerControls = ({
     ))}
   </div>
 );
+
+export type { Layer };
+export { LayerControls };

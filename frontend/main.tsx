@@ -1,5 +1,6 @@
 import { addProtocol } from "maplibre-gl";
 import { Protocol } from "pmtiles";
+// biome-ignore lint/correctness/noUnresolvedImports: TypeScript resolves React's StrictMode export.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "maplibre-gl/dist/maplibre-gl.css";

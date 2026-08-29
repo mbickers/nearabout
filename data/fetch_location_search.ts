@@ -18,18 +18,18 @@ import {
   type SearchRecord,
 } from "./location_search.ts";
 
-type OsmTags = Record<string, string>;
+type OsmTags = Record<string, string | undefined>;
 
-type GeoJsonGeometry = {
+interface GeoJsonGeometry {
   type: string;
   coordinates?: unknown;
-};
+}
 
-type GeoJsonFeature = {
+interface GeoJsonFeature {
   type: "Feature";
   geometry: GeoJsonGeometry | null;
   properties: OsmTags;
-};
+}
 
 const run = async (command: string, args: string[]): Promise<void> => {
   console.log([command, ...args].join(" "));
@@ -138,11 +138,11 @@ const representativePoint = (geometry: GeoJsonGeometry | null): [number, number]
   return bounds ? [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2] : undefined;
 };
 
-type SearchableRecord = {
+interface SearchableRecord {
   addressKey?: string;
   hasName: boolean;
   record: SearchRecord;
-};
+}
 
 const searchableRecordFromGeoJsonFeature = (
   feature: GeoJsonFeature,
@@ -175,7 +175,7 @@ const searchableRecordFromGeoJsonFeature = (
   };
 };
 
-export const recordFromGeoJsonFeature = (feature: GeoJsonFeature): SearchRecord | undefined =>
+const recordFromGeoJsonFeature = (feature: GeoJsonFeature): SearchRecord | undefined =>
   searchableRecordFromGeoJsonFeature(feature)?.record;
 
 const deduplicateRecords = (records: SearchableRecord[]): SearchableRecord[] => {
@@ -243,10 +243,10 @@ const compareSearchRecords = (
   [labelB, longitudeB, latitudeB]: SearchRecord,
 ): number => labelA.localeCompare(labelB) || longitudeA - longitudeB || latitudeA - latitudeB;
 
-type SearchIndex = {
+interface SearchIndex {
   buckets: LocationSearchBucket[];
   manifest: LocationSearchManifest;
-};
+}
 
 const buildSearchIndex = (
   searchableRecords: SearchableRecord[],
@@ -358,3 +358,5 @@ const main = async () => {
 };
 
 await main();
+
+export { recordFromGeoJsonFeature };

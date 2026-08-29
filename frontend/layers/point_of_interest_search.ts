@@ -1,10 +1,10 @@
-export type LocationSearchResult = {
+interface LocationSearchResult {
   label: string;
   longitude: number;
   latitude: number;
-};
+}
 
-export type LocationSearchScope = "visible_map" | "entire_city";
+type LocationSearchScope = "visible_map" | "entire_city";
 
 type NonEmptyLocationSearchResults = [LocationSearchResult, ...LocationSearchResult[]];
 
@@ -12,13 +12,13 @@ type RetainedLocationSearchResult =
   | { kind: "results"; results: LocationSearchResult[] }
   | { kind: "selected"; result: LocationSearchResult };
 
-type CompletedLocationSearch = {
+interface CompletedLocationSearch {
   requestId: number;
   scope: LocationSearchScope;
   results: NonEmptyLocationSearchResults;
-};
+}
 
-export type LocationSearchState =
+type LocationSearchState =
   | { status: "idle" }
   | {
       status: "queued";
@@ -38,24 +38,24 @@ export type LocationSearchState =
   | { status: "not_found"; scope: LocationSearchScope }
   | { status: "error"; retained?: RetainedLocationSearchResult };
 
-export type PointOfInterestSearch = {
+interface PointOfInterestSearch {
   query: string;
   state: LocationSearchState;
-};
+}
 
-export type PointOfInterestSearchRow = {
+interface PointOfInterestSearchRow {
   id: string;
   label: string;
   search: PointOfInterestSearch;
-};
+}
 
-export type PointsOfInterestSearchState = {
+interface PointsOfInterestSearchState {
   viewRequestSourceId: string;
   nextRequestId: number;
   rows: PointOfInterestSearchRow[];
-};
+}
 
-export type LocationSearchEvent =
+type LocationSearchEvent =
   | { type: "query_changed"; query: string }
   | { type: "map_moved" }
   | { type: "input_blurred" }
@@ -125,7 +125,7 @@ const transitionAfterInputBlur = (search: PointOfInterestSearch): PointOfInteres
   }
 };
 
-export const transitionLocationSearch = (
+const transitionLocationSearch = (
   search: PointOfInterestSearch,
   event: LocationSearchEvent,
 ): PointOfInterestSearch => {
@@ -193,24 +193,38 @@ export const transitionLocationSearch = (
   }
 };
 
-export const locationSearchResults = (
-  state: LocationSearchState,
-): LocationSearchResult[] | undefined => {
+const locationSearchResults = (state: LocationSearchState): LocationSearchResult[] | undefined => {
   const retained = retainedLocationSearchResult(state);
   return retained?.kind === "results" ? retained.results : undefined;
 };
 
-export const selectedLocationSearchResult = (
+const selectedLocationSearchResult = (
   state: LocationSearchState,
 ): LocationSearchResult | undefined => {
   const retained = retainedLocationSearchResult(state);
   return retained?.kind === "selected" ? retained.result : undefined;
 };
 
-export const completedEntireCitySearch = (
+const completedEntireCitySearch = (
   state: LocationSearchState,
 ): CompletedLocationSearch | undefined => {
   const completedSearch =
     state.status === "results" || state.status === "selected" ? state.completedSearch : undefined;
   return completedSearch?.scope === "entire_city" ? completedSearch : undefined;
+};
+
+export type {
+  LocationSearchEvent,
+  LocationSearchResult,
+  LocationSearchScope,
+  LocationSearchState,
+  PointOfInterestSearch,
+  PointOfInterestSearchRow,
+  PointsOfInterestSearchState,
+};
+export {
+  completedEntireCitySearch,
+  locationSearchResults,
+  selectedLocationSearchResult,
+  transitionLocationSearch,
 };

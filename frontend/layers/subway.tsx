@@ -16,11 +16,11 @@ import {
 } from "./shared";
 
 // express routes are diamonds on the official map, everything else is a disc
-type SubwayBullet = {
+interface SubwayBullet {
   route: string;
   color: string;
   text_color: string;
-};
+}
 
 // A station's bullets and its name are one symbol, so that the collision engine places the whole
 // label or none of it. The bullets are composited into a single icon named by the block string:

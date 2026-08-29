@@ -1,9 +1,9 @@
-export type GeographicBounds = {
+export interface GeographicBounds {
   west: number;
   south: number;
   east: number;
   north: number;
-};
+}
 
 export const NYC_BOUNDS: GeographicBounds = {
   west: -74.25909,

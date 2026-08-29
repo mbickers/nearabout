@@ -11,15 +11,80 @@
   },
   "linter": {
     "domains": {
-      "react": "recommended"
+      "drizzle": "none",
+      "next": "none",
+      "playwright": "none",
+      "project": "all",
+      "qwik": "none",
+      "react": "all",
+      "reactNative": "none",
+      "solid": "none",
+      "svelte": "none",
+      "tailwind": "none",
+      "test": "all",
+      "turborepo": "none",
+      "types": "all",
+      "vue": "none"
     },
     "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "preset": "all",
+        "useImportExtensions": "off"
+      },
+      "performance": {
+        "preset": "all",
+        "noDynamicNamespaceImportAccess": "error",
+        "noJsxPropsBind": "off",
+        "noNamespaceImport": "off",
+        "useTopLevelRegex": "off"
+      },
+      "security": {
+        "preset": "all"
+      },
       "style": {
-        "noNonNullAssertion": "off"
+        "noDefaultExport": "error",
+        "noNonNullAssertion": "off",
+        "useComponentExportOnlyModules": "off",
+        "useConsistentTypeDefinitions": "error",
+        "useExportsLast": "error"
       },
       "suspicious": {
+        "preset": "all",
+        "noBitwiseOperators": "off",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["error"]
+          }
+        },
         "noShadowRestrictedNames": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["data/**", "vite.config.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off"
+          },
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["vite.config.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    }
+  ]
 }

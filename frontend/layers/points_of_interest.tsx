@@ -34,7 +34,7 @@ const normalizePointOfInterestRows = (rows: PointOfInterestSearchRow[], editedRo
   return [...nonemptyRows, emptyRow];
 };
 
-export const searchStateForItems = (items: PointOfInterest[]): PointsOfInterestSearchState => ({
+const searchStateForItems = (items: PointOfInterest[]): PointsOfInterestSearchState => ({
   viewRequestSourceId: crypto.randomUUID(),
   nextRequestId: 0,
   rows: normalizePointOfInterestRows(
@@ -190,10 +190,10 @@ const PointsOfInterestControls = ({
   const updateRows = useCallback(
     (update: (rows: PointOfInterestSearchRow[]) => PointOfInterestSearchRow[]) =>
       onSearchStateChange((currentSearchState) => {
-        const rows = update(currentSearchState.rows);
-        return rows === currentSearchState.rows
+        const nextRows = update(currentSearchState.rows);
+        return nextRows === currentSearchState.rows
           ? currentSearchState
-          : { ...currentSearchState, rows };
+          : { ...currentSearchState, rows: nextRows };
       }),
     [onSearchStateChange],
   );
@@ -469,7 +469,7 @@ const pointsOfInterestMapContribution = ({
   };
 };
 
-export const pointsOfInterestLayer = ({
+const pointsOfInterestLayer = ({
   searchState,
   onSearchStateChange,
 }: {
@@ -487,3 +487,5 @@ export const pointsOfInterestLayer = ({
     />
   ),
 });
+
+export { pointsOfInterestLayer, searchStateForItems };

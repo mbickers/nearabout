@@ -48,7 +48,8 @@ const bindLayer = <Key extends LayerKey>({
     key,
     label,
     enabled: state.enabled,
-    onEnabledChange: (enabled) => onChange((state) => ({ ...state, enabled })),
+    onEnabledChange: (enabled) =>
+      onChange((currentLayerState) => ({ ...currentLayerState, enabled })),
     contribution: state.enabled ? contribution(state) : undefined,
     renderControls: (context) => renderControls({ state, onChange, context }),
   };
@@ -71,6 +72,7 @@ export const App = () => {
   );
   const { geography, subway, streets, citibikeDocks } = mapState.layers;
 
+  // Map performance is sensitive to how contributions get constructed. Specifically check performance when making changes that will effect how these get computed.
   const mapStyleContributions = useMemo(
     () => [
       ...contributionsWhenEnabled({ state: geography, definition: geographyLayer }),
@@ -92,13 +94,15 @@ export const App = () => {
         onSearchStateChange: setPointOfInterestSearchState,
       }),
     };
-    const layers = LAYER_KEYS.map((key) =>
+    const boundLayers = LAYER_KEYS.map((key) =>
       bindLayer({ key, definitions, layerStates: mapState.layers, setMapState }),
     );
 
     return {
-      layers,
-      mapContributions: layers.flatMap(({ contribution }) => (contribution ? [contribution] : [])),
+      layers: boundLayers,
+      mapContributions: boundLayers.flatMap(({ contribution }) =>
+        contribution ? [contribution] : [],
+      ),
     };
   }, [mapState.layers, pointOfInterestSearchState, setMapState]);
 

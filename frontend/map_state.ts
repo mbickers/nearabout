@@ -2,9 +2,9 @@ import * as z from "zod";
 
 const servicePeriodSchema = z.enum(["regular", "late_night", "weekend"]);
 
-export const SERVICE_PERIODS = servicePeriodSchema.options;
+const SERVICE_PERIODS = servicePeriodSchema.options;
 
-export type ServicePeriod = z.infer<typeof servicePeriodSchema>;
+type ServicePeriod = z.infer<typeof servicePeriodSchema>;
 
 const pointOfInterestSchema = z.object({
   id: z.string(),
@@ -14,36 +14,36 @@ const pointOfInterestSchema = z.object({
   latitude: z.number(),
 });
 
-export type PointOfInterest = z.infer<typeof pointOfInterestSchema>;
+type PointOfInterest = z.infer<typeof pointOfInterestSchema>;
 
 const geographyStateSchema = z.object({
   enabled: z.boolean(),
   parksVisible: z.boolean(),
 });
-export type GeographyState = z.infer<typeof geographyStateSchema>;
+type GeographyState = z.infer<typeof geographyStateSchema>;
 
 const subwayStateSchema = z.object({
   enabled: z.boolean(),
   servicePeriod: servicePeriodSchema,
 });
-export type SubwayState = z.infer<typeof subwayStateSchema>;
+type SubwayState = z.infer<typeof subwayStateSchema>;
 
 const streetsStateSchema = z.object({
   enabled: z.boolean(),
   bikeLanesVisible: z.boolean(),
 });
-export type StreetsState = z.infer<typeof streetsStateSchema>;
+type StreetsState = z.infer<typeof streetsStateSchema>;
 
 const citibikeDocksStateSchema = z.object({ enabled: z.boolean() });
-export type CitibikeDocksState = z.infer<typeof citibikeDocksStateSchema>;
+type CitibikeDocksState = z.infer<typeof citibikeDocksStateSchema>;
 
 const pointsOfInterestStateSchema = z.object({
   enabled: z.boolean(),
   items: z.array(pointOfInterestSchema),
 });
-export type PointsOfInterestState = z.infer<typeof pointsOfInterestStateSchema>;
+type PointsOfInterestState = z.infer<typeof pointsOfInterestStateSchema>;
 
-export const layerStatesSchema = z.object({
+const layerStatesSchema = z.object({
   geography: geographyStateSchema,
   subway: subwayStateSchema,
   streets: streetsStateSchema,
@@ -51,14 +51,28 @@ export const layerStatesSchema = z.object({
   pointsOfInterest: pointsOfInterestStateSchema,
 });
 
-export type LayerStates = z.infer<typeof layerStatesSchema>;
-export type LayerKey = keyof LayerStates;
+type LayerStates = z.infer<typeof layerStatesSchema>;
+type LayerKey = keyof LayerStates;
 
-export const LAYER_KEYS = layerStatesSchema.keyof().options;
+const LAYER_KEYS = layerStatesSchema.keyof().options;
 
-export const mapStateSchema = z.object({
+const mapStateSchema = z.object({
   view: z.object({ longitude: z.number(), latitude: z.number(), zoom: z.number() }),
   layers: layerStatesSchema,
 });
 
-export type MapState = z.infer<typeof mapStateSchema>;
+type MapState = z.infer<typeof mapStateSchema>;
+
+export type {
+  CitibikeDocksState,
+  GeographyState,
+  LayerKey,
+  LayerStates,
+  MapState,
+  PointOfInterest,
+  PointsOfInterestState,
+  ServicePeriod,
+  StreetsState,
+  SubwayState,
+};
+export { LAYER_KEYS, layerStatesSchema, mapStateSchema, SERVICE_PERIODS };

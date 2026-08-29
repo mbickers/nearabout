@@ -9,20 +9,26 @@ import MapLibreMap from "react-map-gl/maplibre";
 import { MAP_FONT } from "./layers/shared";
 import type { GeographicBounds } from "./map_bounds";
 
-export type LayerZ = "background" | "street" | "feature" | "label" | "debug";
+type LayerZ = "background" | "street" | "feature" | "label" | "debug";
 
-export type PhysicalLayer = { z: LayerZ; style: LayerSpecification };
+interface PhysicalLayer {
+  z: LayerZ;
+  style: LayerSpecification;
+}
 
-export type MapPoint = { longitude: number; latitude: number };
+interface MapPoint {
+  longitude: number;
+  latitude: number;
+}
 
-export type MapView = MapPoint & { zoom: number };
+type MapView = MapPoint & { zoom: number };
 
-export type MapViewRequest = {
+interface MapViewRequest {
   id: string;
   points: MapPoint[];
   paddingFraction: number;
   maxZoom: number;
-};
+}
 
 const fitMapViewToPoints = (
   map: MapInstance,
@@ -53,13 +59,13 @@ const fitMapViewToPoints = (
   );
 };
 
-export type MapContribution = {
+interface MapContribution {
   sources: StyleSpecification["sources"];
   physicalLayers: PhysicalLayer[];
   markerElements?: ReactElement[];
   viewRequest?: MapViewRequest;
   addStyleImages?: (map: MapInstance) => void | Promise<void>;
-};
+}
 
 const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
   const bounds = map.getBounds();
@@ -71,7 +77,10 @@ const geographicBoundsFor = (map: MapInstance): GeographicBounds => {
   };
 };
 
-export type SettledMapState = { bounds: GeographicBounds; view: MapView };
+interface SettledMapState {
+  bounds: GeographicBounds;
+  view: MapView;
+}
 
 const settledMapStateFor = (map: MapInstance): SettledMapState => {
   const center = map.getCenter();
@@ -81,7 +90,7 @@ const settledMapStateFor = (map: MapInstance): SettledMapState => {
   };
 };
 
-export const Map = ({
+const Map = ({
   contributions,
   styleContributions,
   viewState,
@@ -159,16 +168,16 @@ export const Map = ({
         maxPitch={0}
         // Preserve focus in the layer controls while the user pans the map.
         onMouseDown={({ originalEvent }) => originalEvent.preventDefault()}
-        onMove={({ target, viewState }) => {
-          setZoom(viewState.zoom);
+        onMove={({ target, viewState: nextViewState }) => {
+          setZoom(nextViewState.zoom);
           setBounds(geographicBoundsFor(target));
         }}
         onMoveEnd={({ target }) => onSettledChange(settledMapStateFor(target))}
         onStyleData={({ target }) => {
           target.setMissingStyleImageResolver(async () => {
-            for (const { addStyleImages } of contributionsRef.current) {
-              await addStyleImages?.(target);
-            }
+            await Promise.all(
+              contributionsRef.current.map(({ addStyleImages }) => addStyleImages?.(target)),
+            );
           });
         }}
         onLoad={({ target }) => {
@@ -201,12 +210,24 @@ export const Map = ({
         <span>zoom: {zoom.toFixed(2)}</span>
         <span>
           bbox:{" "}
-          {bounds &&
-            [bounds.west, bounds.south, bounds.east, bounds.north]
-              .map((degrees) => degrees.toFixed(4))
-              .join(", ")}
+          {bounds
+            ? [bounds.west, bounds.south, bounds.east, bounds.north]
+                .map((degrees) => degrees.toFixed(4))
+                .join(", ")
+            : null}
         </span>
       </div>
     </>
   );
 };
+
+export type {
+  LayerZ,
+  MapContribution,
+  MapPoint,
+  MapView,
+  MapViewRequest,
+  PhysicalLayer,
+  SettledMapState,
+};
+export { Map };
