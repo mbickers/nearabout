@@ -4,7 +4,7 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
     "strict": true,
@@ -23,5 +23,5 @@
   },
   // vite.config.ts is deliberately excluded: Vite strips its types without checking them
   // anyway, and a malformed config fails at dev-server startup.
-  "include": ["frontend"]
+  "include": ["frontend", "data/*.ts"]
 }

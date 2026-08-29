@@ -1,4 +1,5 @@
 [tools]
+node = "24"
 watchexec = "latest"
 
 [settings]
@@ -29,6 +30,11 @@ run = "uv run python -m data.fetch_map_fonts"
 sources = ["data/fetch_map_fonts.py"]
 outputs = ["public/data/fonts"]
 
+[tasks."data:location_search"]
+run = "node --import tsx data/fetch_location_search.ts"
+sources = ["data/fetch_location_search.ts", "data/location_search.ts"]
+outputs = ["public/data/location_search"]
+
 [tasks."data:subway_geojson"]
 run = "uv run python -m data.fetch_subway_geojson"
 sources = ["data/fetch_subway_geojson.py"]
@@ -54,6 +60,7 @@ outputs = [
 depends = [
     "data:basemap",
     "data:citibike_docks",
+    "data:location_search",
     "data:map_fonts",
     "data:roads",
     "data:subway_geojson",
