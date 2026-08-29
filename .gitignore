@@ -2,6 +2,7 @@ node_modules/
 dist/
 
 public/data/
+data/*.osm.pbf*
 
 __pycache__/
 .ruff_cache/

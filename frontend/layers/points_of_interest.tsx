@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker } from "react-map-gl/maplibre";
 import type { PointOfInterest } from "../layer";
-import { searchNominatim } from "./nominatim";
+import { searchLocations } from "./location_search";
 import {
   completedEntireCitySearch,
   type LocationSearchEvent,
@@ -210,9 +210,10 @@ const PointsOfInterestControls = ({
       if (!bounds) return;
 
       try {
-        const results = await searchNominatim({ query, bounds });
+        const results = await searchLocations({ query, bounds });
         transitionRowSearch(rowId, { type: "search_succeeded", requestId, results });
-      } catch {
+      } catch (error) {
+        console.error(error);
         transitionRowSearch(rowId, { type: "search_failed", requestId });
       }
     },
